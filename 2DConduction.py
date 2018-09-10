@@ -131,7 +131,7 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
         T[-1,:]=bc4
     
     Tc2=T.copy()
-    
+    # Explicit solver and flux/convective BCs
     if is_explicit:
         Tc=T.copy()
         Tc2[1:-1,1:-1]=(Fo*dy**2*(Tc[1:-1,:-2]+Tc[1:-1,2:])\
@@ -142,19 +142,19 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
         # Apply flux BC if applicable
         if BC_setup[0]==2:
             T[1:-1,0]=(2*Fo*bc1*dy**2*dx/k+2*Fo*dy**2*Tc[1:-1,1]\
-             +2*Fo*dx**2*(Tc[:-2,0]+Tc[2:,0])+(dx*dy\
+             +Fo*dx**2*(Tc[:-2,0]+Tc[2:,0])+(dx*dy\
              -2*Fo*(dy**2+2*dx**2)*Tc[1:-1,0]))/(dx*dy)
         if BC_setup[1]==2:
             T[1:-1,-1]=(2*Fo*bc2*dy**2*dx/k+2*Fo*dy**2*Tc[1:-1,-2]\
-             +2*Fo*dx**2*(Tc[:-2,-1]+Tc[2:,-1])+(dx*dy\
+             +Fo*dx**2*(Tc[:-2,-1]+Tc[2:,-1])+(dx*dy\
              -2*Fo*(dy**2+2*dx**2)*Tc[1:-1,-1]))/(dx*dy)
         if BC_setup[2]==2:
             T[0,1:-1]=(2*Fo*bc3*dx**2*dy/k+2*Fo*dx**2*Tc[1,1:-1]\
-             +2*Fo*dy**2*(Tc[0,:-2]+Tc[0,2:])+(dx*dy\
+             +Fo*dy**2*(Tc[0,:-2]+Tc[0,2:])+(dx*dy\
              -2*Fo*(dx**2+2*dy**2)*Tc[0,1:-1]))/(dx*dy)
         if BC_setup[3]==2:
             T[-1,1:-1]=(2*Fo*bc3*dx**2*dy/k+2*Fo*dx**2*Tc[-2,1:-1]\
-             +2*Fo*dy**2*(Tc[-1,:-2]+Tc[-1,2:])+(dx*dy\
+             +Fo*dy**2*(Tc[-1,:-2]+Tc[-1,2:])+(dx*dy\
              -2*Fo*(dx**2+2*dy**2)*Tc[-1,1:-1]))/(dx*dy)
         
         # Apply convective BC if applicable
@@ -179,6 +179,7 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
              +2*Fo*dy**2*(Tc[-1,:-2]+Tc[-1,2:])+(dx*dy\
              -2*Fo*(dx**2+2*dy**2)-2*Fo*Bi*dx**2)*Tc[-1,1:-1])/(dx*dy)
     
+    # Implicit solver and flux/convective BCs
     else:
         Tc=T.copy()
         Tprev=T.copy()
@@ -189,37 +190,45 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
             /(dx*dy+2*Fo*(dx**2+dy**2))
             Tc2[1:-1, 1:-1]=alpha*Tc[1:-1, 1:-1]+(1-alpha)*T[1:-1, 1:-1]
             
-            # Apply flux BC if applicable (FILL IN)
+            # Apply flux BC if applicable
             if BC_setup[0]==2:
-                T[1:-1,0]=(2*bc1*dy**2*dx/k+2*dy**2*T[1:-1,1]\
-                 +dx**2*(T[:-2,0]+T[2:,0]))/(2*dy**2+2*dx**2)
+                T[1:-1,0]=(2*Fo*bc1*dy**2*dx/k+2*Fo*dy**2*T[1:-1,1]\
+                 +Fo*dx**2*(T[:-2,0]+T[2:,0])+dx*dy*Tprev[1:-1,0])\
+                 /(dx*dy+2*Fo*(dy**2+dx**2))
             if BC_setup[1]==2:
-                T[1:-1,-1]=(2*bc2*dy**2*dx/k+2*dy**2*T[1:-1,-2]\
-                 +dx**2*(T[:-2,-1]+T[2:,-1]))/(2*dy**2+2*dx**2)
+                T[1:-1,-1]=(2*Fo*bc2*dy**2*dx/k+2*Fo*dy**2*T[1:-1,-2]\
+                 +Fo*dx**2*(T[:-2,-1]+T[2:,-1])+dx*dy*Tprev[1:-1,-1])\
+                 /(dx*dy+2*Fo*(dy**2+dx**2))
             if BC_setup[2]==2:
-                T[0,1:-1]=(2*bc3*dx**2*dy/k+2*dx**2*T[1,1:-1]\
-                +dy**2*(T[0,:-2]+T[0,2:]))/(2*dx**2+2*dy**2)
+                T[0,1:-1]=(2*Fo*bc3*dx**2*dy/k+2*Fo*dx**2*T[1,1:-1]\
+                 +Fo*dy**2*(T[0,:-2]+T[0,2:])+dx*dy*Tprev[0,1:-1])\
+                 /(dx*dy+2*Fo*(dy**2+dx**2))
             if BC_setup[3]==2:
-                T[-1,1:-1]=(2*bc4*dx**2*dy/k+2*dx**2*T[-2,1:-1]\
-                +dy**2*(T[-1,:-2]+T[-1,2:]))/(2*dx**2+2*dy**2)
+                T[-1,1:-1]=(2*Fo*bc4*dx**2*dy/k+2*Fo*dx**2*T[-2,1:-1]\
+                 +Fo*dy**2*(T[-1,:-2]+T[-1,2:])+dx*dy*Tprev[-1,1:-1])\
+                 /(dx*dy+2*Fo*(dy**2+dx**2))
             
-            # Apply convective BC if applicable (FILL IN)
+            # Apply convective BC if applicable
             if BC_setup[0]==3:
                 Bi=bc1[0]*dx/k
-                T[1:-1,0]=(2*Bi*dy**2*bc1[1]+2*dy**2*T[1:-1,1]\
-                 +dx**2*(T[:-2,0]+T[2:,0]))/(2*dy**2+2*dx**2+2*Bi*dy**2)
+                T[1:-1,0]=(2*Fo*Bi*bc1[1]*dy**2+2*Fo*dy**2*T[1:-1,1]\
+                 +Fo*dx**2*(T[:-2,0]+T[2:,0])+dx*dy*Tprev[1:-1,0])\
+                 /(dx*dy+2*Fo*(dy**2+dx**2+Bi*dy**2))
             if BC_setup[1]==3:
                 Bi=bc2[0]*dx/k
-                T[1:-1,-1]=(2*Bi*dy**2*bc2[1]+2*dy**2*T[1:-1,-2]\
-                 +dx**2*(T[:-2,-1]+T[2:,-1]))/(2*dy**2+2*dx**2+2*Bi*dy**2)
+                T[1:-1,-1]=(2*Fo*Bi*bc2[1]*dy**2*dx/k+2*Fo*dy**2*T[1:-1,-2]\
+                 +Fo*dx**2*(T[:-2,-1]+T[2:,-1])+dx*dy*Tprev[1:-1,-1])\
+                 /(dx*dy+2*Fo*(dy**2+dx**2+Bi*dy**2))
             if BC_setup[2]==3:
                 Bi=bc3[0]*dy/k
-                T[0,1:-1]=(2*Bi*dx**2*bc3[1]+2*dx**2*T[1,1:-1]\
-                +dy**2*(T[0,:-2]+T[0,2:]))/(2*dx**2+2*dy**2+2*Bi*dx**2)
+                T[0,1:-1]=(2*Fo*Bi*bc3[1]*dx**2*dy/k+2*Fo*dx**2*T[1,1:-1]\
+                 +Fo*dy**2*(T[0,:-2]+T[0,2:])+dx*dy*Tprev[0,1:-1])\
+                 /(dx*dy+2*Fo*(dy**2+dx**2+Bi*dx**2))
             if BC_setup[3]==3:
                 Bi=bc4[0]*dy/k
-                T[-1,1:-1]=(2*Bi*dx**2*bc4[1]+2*dx**2*T[-2,1:-1]\
-                +dy**2*(T[-1,:-2]+T[-1,2:]))/(2*dx**2+2*dy**2+2*Bi*dx**2)
+                T[-1,1:-1]=(2*Fo*Bi*bc4[1]*dx**2*dy/k+2*Fo*dx**2*T[-2,1:-1]\
+                 +Fo*dy**2*(T[-1,:-2]+T[-1,2:])+dx*dy*Tprev[-1,1:-1])\
+                 /(dx*dy+2*Fo*(dy**2+dx**2+Bi*dx**2))
             
             diff=numpy.sum(numpy.abs(T[:]-Tc2[:]))/numpy.sum(numpy.abs(T[:]))
             count=count+1
@@ -262,7 +271,7 @@ TranConvStab=0.2 # Fo(Bi+1)<=0.25? (trans, convective BC)
 alpha=1 # Relaxation parameter (<1-under, >1-over)
 
 #       Initial conditions
-T[1:-1, 1:-1]=600
+T[:, :]=600
 
 #       BCs on ends of length
 Tx1=700 #                        SMALLEST x coordinate
@@ -270,7 +279,7 @@ qx1=1000 # Heat flux BC
 #hx1=50 # Convective heat transfer coefficient (W/m^2/K)
 #Tinfx1=273 # Freestream temperature
 Tx2=300 #                       LARGEST x coordinate
-qx2=1000 # Heat flux BC
+qx2=-100 # Heat flux BC
 #hx2=50 # Convective heat transfer coefficient (W/m^2/K)
 #Tinfx2=273 # Freestream temperature
 
@@ -280,7 +289,7 @@ qy1=1000 # Heat flux BC
 #hy1=50 # Convective heat transfer coefficient (W/m^2/K)
 #Tinfy1=273 # Freestream temperature
 Ty2=700 #                        LARGEST y coordinate
-qy2=1000 # Heat flux BC
+qy2=-100 # Heat flux BC
 #hy2=50 # Convective heat transfer coefficient (W/m^2/K)
 #Tinfy2=273 # Freestream temperature
 
@@ -292,8 +301,11 @@ X, Y = numpy.meshgrid(x, y)
 #T,error=SteadySolve(T, (dx,dy), k, (conv,alpha), \
 #                    (1,1,1,1), Tx1, Tx2, Ty1, Ty2)
 for i in range(timeSteps):
-    if i%2==0:
-        Tx1=Tx1-50
+    # Change a BC with time
+#    if i%2==0:
+#        Tx1=Tx1-50
+#    T,error=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha),\
+#                       (1,1,1,1), Tx1, Tx2, Ty1, Ty2)
     T,error=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha),\
                        (1,1,1,1), Tx1, Tx2, Ty1, Ty2)
     if i==timeSteps/2:
@@ -302,6 +314,10 @@ for i in range(timeSteps):
 #                   (1,1,1,1), Tx1, Tx2, Ty1, Ty2)
 
 PlotXYT(X, Y, T, 300, 700)
+
+T,error=SteadySolve(T, (dx,dy), k, (conv, alpha),\
+              (2,2,2,2), qx1, qx2, qy1, qy2)
+PlotXYT(X, Y, T, 0, 700)
 
 #print 'Transient model (implicit) with convective and temperature BCs. dt=%.2fs for %i timesteps\nResiduals:'%(dt,timeSteps)
 #for i in range(timeSteps):
