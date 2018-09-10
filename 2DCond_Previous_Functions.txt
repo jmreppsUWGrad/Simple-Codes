@@ -1,0 +1,78 @@
+# BC handler
+def FluxBC(T, is_x_BC, is_xy_end, dx, dy, qbc, k, bc3, bc4, T2, T3, solver_type): 
+    if is_xy_end:
+        col=-1
+        mov=-1
+    else:
+        col=0
+        mov=1
+    
+    if solver_type==0: # Steady model
+        if is_x_BC:
+            T[1:-1,col]=(2*qbc*dy**2*dx/k+2*dy**2*T[1:-1,col+mov]\
+             +dx**2*(T[:-2,col]+T[2:,col]))/(2*dy**2+2*dx**2)
+        else:
+            T[col,1:-1]=(2*qbc*dx**2*dy/k+2*dx**2*T[col+mov,1:-1]\
+            +dy**2*(T[col,:-2]+T[col,2:]))/(2*dx**2+2*dy**2)
+    
+    elif solver_type==1: # transient-explicit
+        if is_x_BC:
+            T[1:-1,col]=(2*Fo*qbc*dy**2*dx/k+2*Fo*dy**2*T[1:-1,col+mov]\
+             +2*Fo*dx**2*(T[:-2,col]+T[2:,col])+(dx*dy\
+             -2*Fo*(dy**2+2*dx**2)*T[1:-1,col]))/(dx*dy)
+    
+    else: #                 transient-implicit (FILL IN)
+        T=(2*qbc*dx*dy/k+2*qbc*T3+T2)/(1+2*qbc)
+        
+    return T
+
+# Solver function (SS, trans-imp, trans-exp; NO BCs)
+def SolveTemps(T, dx, dy, Fo, alpha, solver_type):
+    error=0
+    diff=10
+    count=1
+    Tc=T.copy()
+    Tc2=T.copy()
+    
+    if solver_type==0: # Steady
+        print 'Residuals:'
+        while (diff>conv) & (count<1000):
+            Tc=T.copy()
+            Tc2[1:-1, 1:-1]=(dx**2*(Tc[:-2,1:-1]+Tc[2:,1:-1]) \
+            +dy**2*(Tc[1:-1,:-2]+Tc[1:-1,2:])) \
+            /(2*dx**2+2*dy**2)
+            T[1:-1, 1:-1]=alpha*Tc2[1:-1, 1:-1]+(1-alpha)*Tc[1:-1, 1:-1]
+            diff=numpy.sum(numpy.abs(T[:]-Tc[:]))/numpy.sum(numpy.abs(T[:]))
+            count=count+1
+            print(diff)
+
+    elif solver_type==1: # Transient-explicit
+        Tc2[1:-1,1:-1]=(Fo*dy**2*(Tc[1:-1,:-2]+Tc[1:-1,2:])\
+            +Fo*dx**2*(Tc[:-2,1:-1]+Tc[2:,1:-1])\
+            +(dx*dy-2*Fo*(dx**2+dy**2))*Tc[1:-1,1:-1])/(dx*dy)
+        T[1:-1, 1:-1]=alpha*Tc2[1:-1, 1:-1]+(1-alpha)*Tc[1:-1, 1:-1]
+    
+    else: # Transient-implicit
+        print 'Residuals:'
+        while (diff>conv) & (count<1000):
+            Tc=T.copy()
+            Tc2[1:-1,1:-1]=(Fo*dx**2*(T[:-2,1:-1]+T[2:,1:-1])\
+                +Fo*dy**2*(T[1:-1,:-2]+T[1:-1,2:])+dx*dy*Tc[1:-1,1:-1])\
+               /(dx*dy+2*Fo*(dx**2+dy**2))
+            T=Tc2.copy()
+            diff=numpy.sum((numpy.abs(T[:]-Tc2[:])))/numpy.sum(T[:])
+            count=count+1
+            print(diff)
+    
+    if count==1000:
+        print 'Convergence problem'
+        error=1
+    return T, error
+
+#print 'Steady state solver'
+#print 'Transient (explicit) solver'
+#print 'Transient (implicit) solver'
+#print 'Residuals:'
+#T,error=SolveTemps(T, dx, dy, 0, alpha, 0) # SS
+#T,error=SolveTemps(T, dx, dy, Fo, alpha, 1) # Trans-exp
+#T,error=SolveTemps(T, dx, dy, Fo, alpha, 2) # Trans-imp
