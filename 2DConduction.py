@@ -6,9 +6,12 @@ Started on Thu Sep 06 20:09:37 2018
 
 This script contains solvers for 2D planar conduction:
 
-Steady, transient (explicit)
-with temperature, flux BCs, convective (any number of)
-NEED TO DEAL WITH CORNERS WITH 2 FLUX/CONVECTIVE BCS
+Features:
+    Steady, transient (explicit or implicit)
+    Temperature, flux or convective BCs (4 sides customizable)
+    Built-in Fourrier number adjustment for stability
+    dx and dy don't have to be equal
+    CANNOT handle 2 adjacent flux/convective BCs (corners)
 
 NOTE: Temperature array setup so rows are y and columns 
 are x, but row indices start at the lowest y coordinate
@@ -24,10 +27,6 @@ Variables:
     alpha: Relaxation parameter
 
 Function inputs:
-    is_x_BC: (bool) indicates whether applied BC is at length ends e.g. (2,:)
-    is_xy_end: (bool) indicates BC is applied to last coordinate of that dimension
-    type_BC: designates BC type; 0-temps, 1-flux, 2-convective
-    
     dxy: array containing dx and dy
     conv_param: array containing convergence criteria and relaxation parameter
     BC_setup: 4 number array to designate BCs at x1, x2, y1, y2 boundaries respectively
@@ -120,6 +119,7 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
     error=0
     diff=10
     count=1
+    Fo_old=Fo
     # Assign temperature BCs if applicable
     if BC_setup[0]==1:
         T[:,0]=bc1
@@ -133,11 +133,41 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
     Tc2=T.copy()
     # Explicit solver and flux/convective BCs
     if is_explicit:
+        # Apply stability criteria to Fo
+        Fo=min(Fo, dx*dy/(2*(dy**2+dx**2)))
+        
+        # Apply stability criteria to Fo for convective BCs
+        if (BC_setup[0]==3) and (BC_setup[1]==3):
+            Bi1=bc1[0]*dx/k
+            Bi2=bc2[0]*dx/k
+            Fo=min(Fo, 0.5*dx/((dy**2+2*dx**2)/dy+2*Bi1*dy),\
+                   0.5*dx/((dy**2+2*dx**2)/dy+2*Bi2*dy))
+        elif (BC_setup[0]==3) or (BC_setup[1]==3):
+            if BC_setup[0]==3:
+                Bi=bc1[0]*dx/k
+            else:
+                Bi=bc2[0]*dx/k
+            Fo=min(Fo, 0.5*dx/((dy**2+2*dx**2)/dy+2*Bi*dy))
+        if (BC_setup[2]==3) and (BC_setup[3]==3):
+            Bi1=bc3[0]*dy/k
+            Bi2=bc4[0]*dy/k
+            Fo=min(Fo, 0.5*dy/((dx**2+2*dy**2)/dx+2*Bi1*dx),\
+                   0.5*dy/((dx**2+2*dy**2)/dy+2*Bi2*dx))
+        elif (BC_setup[2]==3) or (BC_setup[3]==3):
+            if BC_setup[2]==3:
+                Bi=bc3[0]*dy/k
+            else:
+                Bi=bc4[0]*dy/k
+            Fo=min(Fo, 0.5*dy/((dx**2+2*dy**2)/dy+2*Bi2*dx))
+        if Fo!=Fo_old:
+            print 'Fourrier number adjusted to %.2f for stability'%Fo
+        # Proceed to solve
         Tc=T.copy()
-        Tc2[1:-1,1:-1]=(Fo*dy**2*(Tc[1:-1,:-2]+Tc[1:-1,2:])\
+        T[1:-1,1:-1]=(Fo*dy**2*(Tc[1:-1,:-2]+Tc[1:-1,2:])\
             +Fo*dx**2*(Tc[:-2,1:-1]+Tc[2:,1:-1])\
             +(dx*dy-2*Fo*(dx**2+dy**2))*Tc[1:-1,1:-1])/(dx*dy)
-        T[1:-1, 1:-1]=alpha*Tc2[1:-1, 1:-1]+(1-alpha)*Tc[1:-1, 1:-1]
+        
+        #T[1:-1, 1:-1]=alpha*Tc2[1:-1, 1:-1]+(1-alpha)*Tc[1:-1, 1:-1]
         
         # Apply flux BC if applicable
         if BC_setup[0]==2:
@@ -257,21 +287,20 @@ Ny=10 # Number of nodes across width
 k=25 # Thermal conductivity (W/m/K)
 rho=8000 # Density (kg/m^3)
 Cp=800 # Specific heat (J/kg/K)
-Fo=0.1 # Fourier number (less than 0.25 for explicit method)
 
 dx=L/(Nx-1)
 dy=W/(Ny-1)
-dt=Fo*rho*Cp*dx*dy/k
 T=numpy.zeros((Ny, Nx))
 
 #       Convergence
 conv=.001 # Convergence target (SS and implicit trans solvers)
+Fo=0.25 # Fourier number
 timeSteps=10 # number of time steps (transient)
-TranConvStab=0.2 # Fo(Bi+1)<=0.25? (trans, convective BC)
 alpha=1 # Relaxation parameter (<1-under, >1-over)
 
 #       Initial conditions
 T[:, :]=600
+dt=Fo*rho*Cp*dx*dy/k
 
 #       BCs on ends of length
 Tx1=700 #                        SMALLEST x coordinate
@@ -315,9 +344,9 @@ for i in range(timeSteps):
 
 PlotXYT(X, Y, T, 300, 700)
 
-T,error=SteadySolve(T, (dx,dy), k, (conv, alpha),\
-              (2,2,2,2), qx1, qx2, qy1, qy2)
-PlotXYT(X, Y, T, 0, 700)
+#T,error=SteadySolve(T, (dx,dy), k, (conv, alpha),\
+#              (2,2,2,2), qx1, qx2, qy1, qy2)
+#PlotXYT(X, Y, T, 0, 700)
 
 #print 'Transient model (implicit) with convective and temperature BCs. dt=%.2fs for %i timesteps\nResiduals:'%(dt,timeSteps)
 #for i in range(timeSteps):
