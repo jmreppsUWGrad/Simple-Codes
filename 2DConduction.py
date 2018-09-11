@@ -135,11 +135,6 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
     if is_explicit:
         # Apply stability criteria to Fo (temp BCs)
         Fo=min(Fo, dx*dy/(2*(dy**2+dx**2)))
-        # Apply stability criteria to Fo (flux BCs)
-        if (BC_setup[0]==2) or (BC_setup[1]==2):
-            Fo=min(Fo, (0.5*dy*dx/(dy**2+2*dx**2)))
-        elif (BC_setup[2]==2) or (BC_setup[3]==2):
-            Fo=min(Fo, (0.5*dy*dx/(dx**2+2*dy**2)))
         # Apply stability criteria to Fo (convective BCs)
         if (BC_setup[0]==3) and (BC_setup[1]==3):
             Bi1=bc1[0]*dx/k
@@ -177,19 +172,19 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
         if BC_setup[0]==2:
             T[1:-1,0]=(2*Fo*bc1*dy**2*dx/k+2*Fo*dy**2*Tc[1:-1,1]\
              +Fo*dx**2*(Tc[:-2,0]+Tc[2:,0])+(dx*dy\
-             -2*Fo*(dy**2+2*dx**2)*Tc[1:-1,0]))/(dx*dy)
+             -2*Fo*(dy**2+dx**2))*Tc[1:-1,0])/(dx*dy)
         if BC_setup[1]==2:
             T[1:-1,-1]=(2*Fo*bc2*dy**2*dx/k+2*Fo*dy**2*Tc[1:-1,-2]\
              +Fo*dx**2*(Tc[:-2,-1]+Tc[2:,-1])+(dx*dy\
-             -2*Fo*(dy**2+2*dx**2)*Tc[1:-1,-1]))/(dx*dy)
+             -2*Fo*(dy**2+dx**2))*Tc[1:-1,-1])/(dx*dy)
         if BC_setup[2]==2:
             T[0,1:-1]=(2*Fo*bc3*dx**2*dy/k+2*Fo*dx**2*Tc[1,1:-1]\
              +Fo*dy**2*(Tc[0,:-2]+Tc[0,2:])+(dx*dy\
-             -2*Fo*(dx**2+2*dy**2)*Tc[0,1:-1]))/(dx*dy)
+             -2*Fo*(dx**2+dy**2))*Tc[0,1:-1])/(dx*dy)
         if BC_setup[3]==2:
             T[-1,1:-1]=(2*Fo*bc4*dx**2*dy/k+2*Fo*dx**2*Tc[-2,1:-1]\
              +Fo*dy**2*(Tc[-1,:-2]+Tc[-1,2:])+(dx*dy\
-             -2*Fo*(dx**2+2*dy**2)*Tc[-1,1:-1]))/(dx*dy)
+             -2*Fo*(dx**2+dy**2))*Tc[-1,1:-1])/(dx*dy)
         
         # Apply convective BC if applicable
         if BC_setup[0]==3:
@@ -299,30 +294,30 @@ T=numpy.zeros((Ny, Nx))
 #       Convergence
 conv=.001 # Convergence target (SS and implicit trans solvers)
 Fo=0.2 # Fourier number
-timeSteps=10 # number of time steps (transient)
+timeSteps=100 # number of time steps (transient)
 alpha=1 # Relaxation parameter (<1-under, >1-over)
 
 #       Initial conditions
-T[:, :]=600
+T[:, :]=400
 dt=Fo*rho*Cp*dx*dy/k
 
 #       BCs on ends of length
-#Tx1=300 #                        SMALLEST x coordinate
-qx1=1000 # Heat flux BC
+Tx1=300 #                        SMALLEST x coordinate
+#qx1=1000 # Heat flux BC
 #hx1=50 # Convective heat transfer coefficient (W/m^2/K)
 #Tinfx1=300 # Freestream temperature
-#Tx2=300 #                       LARGEST x coordinate
-qx2=1000 # Heat flux BC
+Tx2=300 #                       LARGEST x coordinate
+#qx2=1000 # Heat flux BC
 #hx2=50 # Convective heat transfer coefficient (W/m^2/K)
 #Tinfx2=300 # Freestream temperature
 
 #       BCs on ends of width
-Ty1=300 #                        SMALLEST y coordinate
-#qy1=1000 # Heat flux BC
+#Ty1=300 #                        SMALLEST y coordinate
+qy1=1000 # Heat flux BC
 #hy1=50 # Convective heat transfer coefficient (W/m^2/K)
 #Tinfy1=300 # Freestream temperature
-Ty2=300 #                        LARGEST y coordinate
-#qy2=1000 # Heat flux BC
+#Ty2=300 #                        LARGEST y coordinate
+qy2=1000 # Heat flux BC
 #hy2=50 # Convective heat transfer coefficient (W/m^2/K)
 #Tinfy2=300 # Freestream temperature
 
@@ -332,9 +327,9 @@ y=numpy.linspace(0, W, Ny)
 X, Y = numpy.meshgrid(x, y)
 
 T,error=SteadySolve(T, (dx,dy), k, (conv,alpha), \
-                    (2,2,1,1), qx1, qx2, Ty1, Ty2)
+                    (1,1,2,2), Tx1, Tx2, qy1, qy2)
 PlotXYT(X, Y, T, 300, 700)
-T[:, :]=600
+T[:, :]=400
 alpha=1
 for i in range(timeSteps):
     # Change a BC with time
@@ -343,9 +338,10 @@ for i in range(timeSteps):
 #    T,error,Fo=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha),\
 #                       (1,1,1,1), Tx1, Tx2, Ty1, Ty2)
     T,error,Fo=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha),\
-                       (2,2,1,1), qx1, qx2, Ty1, Ty2)
+                       (1,1,2,2), Tx1, Tx2, qy1, qy2)
     #(1,1,3,3), Tx1, Tx2, (hy1, Tinfy1), (hy2, Tinfy2))
     #(1,1,2,2), Tx1, Tx2, qy1, qy2)
+    #(2,2,1,1), qx1, qx2, Ty1, Ty2)
     if error==1:
         print 'Convergence problem at time step %i'%i
         break
