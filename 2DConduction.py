@@ -294,7 +294,7 @@ T=numpy.zeros((Ny, Nx))
 #       Convergence
 conv=.001 # Convergence target (SS and implicit trans solvers)
 Fo=0.2 # Fourier number
-timeSteps=100 # number of time steps (transient)
+timeSteps=10 # number of time steps (transient)
 alpha=1 # Relaxation parameter (<1-under, >1-over)
 
 #       Initial conditions
@@ -302,21 +302,28 @@ T[:, :]=400
 dt=Fo*rho*Cp*dx*dy/k
 
 #       BCs on ends of length
-Tx1=300 #                        SMALLEST x coordinate
+Tx1=300 #                         SMALLEST x coordinate
+#Tx1=numpy.zeros(Ny) #      VARYING BC
+#Tx1[:]=range(300, 600+300/(Ny-1), (300/(Ny-1)))
 #qx1=1000 # Heat flux BC
 #hx1=50 # Convective heat transfer coefficient (W/m^2/K)
 #Tinfx1=300 # Freestream temperature
 Tx2=300 #                       LARGEST x coordinate
+#Tx2=numpy.zeros(Ny) #      VARYING BC
 #qx2=1000 # Heat flux BC
 #hx2=50 # Convective heat transfer coefficient (W/m^2/K)
 #Tinfx2=300 # Freestream temperature
 
 #       BCs on ends of width
 #Ty1=300 #                        SMALLEST y coordinate
-qy1=1000 # Heat flux BC
+#Ty1=numpy.zeros(Nx) #      VARYING BC
+qy1=numpy.zeros(timeSteps)
+qy1[:]=range(200, 2000+2000/(timeSteps), 2000/(timeSteps)) # Heat flux BC
+#qy1=1000
 #hy1=50 # Convective heat transfer coefficient (W/m^2/K)
 #Tinfy1=300 # Freestream temperature
 #Ty2=300 #                        LARGEST y coordinate
+#Ty2=numpy.zeros(Nx) #      VARYING BC
 qy2=1000 # Heat flux BC
 #hy2=50 # Convective heat transfer coefficient (W/m^2/K)
 #Tinfy2=300 # Freestream temperature
@@ -326,11 +333,12 @@ x=numpy.linspace(0, L, Nx)
 y=numpy.linspace(0, W, Ny)
 X, Y = numpy.meshgrid(x, y)
 
-T,error=SteadySolve(T, (dx,dy), k, (conv,alpha), \
-                    (1,1,2,2), Tx1, Tx2, qy1, qy2)
-PlotXYT(X, Y, T, 300, 700)
-T[:, :]=400
-alpha=1
+#       Steady state solver/plotter
+#T,error=SteadySolve(T, (dx,dy), k, (conv,alpha), \
+#                    (1,1,2,2), Tx1, Tx2, qy1, qy2)
+#PlotXYT(X, Y, T, 300, 700)
+
+#       Transient solver
 for i in range(timeSteps):
     # Change a BC with time
 #    if i%2==0:
@@ -339,17 +347,13 @@ for i in range(timeSteps):
 #                       (1,1,1,1), Tx1, Tx2, Ty1, Ty2)
     T,error,Fo=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha),\
                        (1,1,2,2), Tx1, Tx2, qy1, qy2)
-    #(1,1,3,3), Tx1, Tx2, (hy1, Tinfy1), (hy2, Tinfy2))
-    #(1,1,2,2), Tx1, Tx2, qy1, qy2)
-    #(2,2,1,1), qx1, qx2, Ty1, Ty2)
+
     if error==1:
         print 'Convergence problem at time step %i'%i
         break
 
-#    if i==timeSteps/2:
-#        PlotXYT(X,Y,T,300,700)
-#T,error=TransSolve(0, T, (dx,dy), k, Fo, (conv,alpha), \
-#                   (1,1,1,1), Tx1, Tx2, Ty1, Ty2)
+    if i==timeSteps/2:
+        PlotXYT(X,Y,T,300,700)
 
 PlotXYT(X, Y, T, 300, 700)
 
