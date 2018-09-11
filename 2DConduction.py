@@ -63,6 +63,7 @@ def SteadySolve(T, dxy, k, conv_param, BC_setup, bc1, bc2, bc3, bc4):
         T[-1,:]=bc4
         
     Tc2=T.copy()
+    print 'Steady state solver'
     print 'Residuals:'
     while (diff>conv) and (count<1000):
         Tc=T.copy()
@@ -108,7 +109,6 @@ def SteadySolve(T, dxy, k, conv_param, BC_setup, bc1, bc2, bc3, bc4):
         print(diff)
     
     if count==1000:
-        print 'Convergence problem'
         error=1
     return T, error
     
@@ -133,10 +133,14 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
     Tc2=T.copy()
     # Explicit solver and flux/convective BCs
     if is_explicit:
-        # Apply stability criteria to Fo
+        # Apply stability criteria to Fo (temp BCs)
         Fo=min(Fo, dx*dy/(2*(dy**2+dx**2)))
-        
-        # Apply stability criteria to Fo for convective BCs
+        # Apply stability criteria to Fo (flux BCs)
+        if (BC_setup[0]==2) or (BC_setup[1]==2):
+            Fo=min(Fo, (0.5*dy*dx/(dy**2+2*dx**2)))
+        elif (BC_setup[2]==2) or (BC_setup[3]==2):
+            Fo=min(Fo, (0.5*dy*dx/(dx**2+2*dy**2)))
+        # Apply stability criteria to Fo (convective BCs)
         if (BC_setup[0]==3) and (BC_setup[1]==3):
             Bi1=bc1[0]*dx/k
             Bi2=bc2[0]*dx/k
@@ -183,7 +187,7 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
              +Fo*dy**2*(Tc[0,:-2]+Tc[0,2:])+(dx*dy\
              -2*Fo*(dx**2+2*dy**2)*Tc[0,1:-1]))/(dx*dy)
         if BC_setup[3]==2:
-            T[-1,1:-1]=(2*Fo*bc3*dx**2*dy/k+2*Fo*dx**2*Tc[-2,1:-1]\
+            T[-1,1:-1]=(2*Fo*bc4*dx**2*dy/k+2*Fo*dx**2*Tc[-2,1:-1]\
              +Fo*dy**2*(Tc[-1,:-2]+Tc[-1,2:])+(dx*dy\
              -2*Fo*(dx**2+2*dy**2)*Tc[-1,1:-1]))/(dx*dy)
         
@@ -213,6 +217,7 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
     else:
         Tc=T.copy()
         Tprev=T.copy()
+        print 'Transient, implicit solver'
         print 'Residuals:'
         while (diff>conv) and (count<1000):
             Tc[1:-1, 1:-1]=(Fo*dx**2*(T[:-2,1:-1]+T[2:,1:-1]) \
@@ -222,42 +227,42 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
             
             # Apply flux BC if applicable
             if BC_setup[0]==2:
-                T[1:-1,0]=(2*Fo*bc1*dy**2*dx/k+2*Fo*dy**2*T[1:-1,1]\
-                 +Fo*dx**2*(T[:-2,0]+T[2:,0])+dx*dy*Tprev[1:-1,0])\
+                Tc2[1:-1,0]=(2*Fo*bc1*dy**2*dx/k+2*Fo*dy**2*Tc2[1:-1,1]\
+                 +Fo*dx**2*(Tc2[:-2,0]+Tc2[2:,0])+dx*dy*Tprev[1:-1,0])\
                  /(dx*dy+2*Fo*(dy**2+dx**2))
             if BC_setup[1]==2:
-                T[1:-1,-1]=(2*Fo*bc2*dy**2*dx/k+2*Fo*dy**2*T[1:-1,-2]\
-                 +Fo*dx**2*(T[:-2,-1]+T[2:,-1])+dx*dy*Tprev[1:-1,-1])\
+                Tc2[1:-1,-1]=(2*Fo*bc2*dy**2*dx/k+2*Fo*dy**2*Tc2[1:-1,-2]\
+                 +Fo*dx**2*(Tc2[:-2,-1]+Tc2[2:,-1])+dx*dy*Tprev[1:-1,-1])\
                  /(dx*dy+2*Fo*(dy**2+dx**2))
             if BC_setup[2]==2:
-                T[0,1:-1]=(2*Fo*bc3*dx**2*dy/k+2*Fo*dx**2*T[1,1:-1]\
-                 +Fo*dy**2*(T[0,:-2]+T[0,2:])+dx*dy*Tprev[0,1:-1])\
+                Tc2[0,1:-1]=(2*Fo*bc3*dx**2*dy/k+2*Fo*dx**2*Tc2[1,1:-1]\
+                 +Fo*dy**2*(Tc2[0,:-2]+Tc2[0,2:])+dx*dy*Tprev[0,1:-1])\
                  /(dx*dy+2*Fo*(dy**2+dx**2))
             if BC_setup[3]==2:
-                T[-1,1:-1]=(2*Fo*bc4*dx**2*dy/k+2*Fo*dx**2*T[-2,1:-1]\
-                 +Fo*dy**2*(T[-1,:-2]+T[-1,2:])+dx*dy*Tprev[-1,1:-1])\
+                Tc2[-1,1:-1]=(2*Fo*bc4*dx**2*dy/k+2*Fo*dx**2*Tc2[-2,1:-1]\
+                 +Fo*dy**2*(Tc2[-1,:-2]+Tc2[-1,2:])+dx*dy*Tprev[-1,1:-1])\
                  /(dx*dy+2*Fo*(dy**2+dx**2))
             
             # Apply convective BC if applicable
             if BC_setup[0]==3:
                 Bi=bc1[0]*dx/k
-                T[1:-1,0]=(2*Fo*Bi*bc1[1]*dy**2+2*Fo*dy**2*T[1:-1,1]\
-                 +Fo*dx**2*(T[:-2,0]+T[2:,0])+dx*dy*Tprev[1:-1,0])\
+                Tc2[1:-1,0]=(2*Fo*Bi*bc1[1]*dy**2+2*Fo*dy**2*Tc2[1:-1,1]\
+                 +Fo*dx**2*(Tc2[:-2,0]+Tc2[2:,0])+dx*dy*Tprev[1:-1,0])\
                  /(dx*dy+2*Fo*(dy**2+dx**2+Bi*dy**2))
             if BC_setup[1]==3:
                 Bi=bc2[0]*dx/k
-                T[1:-1,-1]=(2*Fo*Bi*bc2[1]*dy**2*dx/k+2*Fo*dy**2*T[1:-1,-2]\
-                 +Fo*dx**2*(T[:-2,-1]+T[2:,-1])+dx*dy*Tprev[1:-1,-1])\
+                Tc2[1:-1,-1]=(2*Fo*Bi*bc2[1]*dy**2+2*Fo*dy**2*Tc2[1:-1,-2]\
+                 +Fo*dx**2*(Tc2[:-2,-1]+Tc2[2:,-1])+dx*dy*Tprev[1:-1,-1])\
                  /(dx*dy+2*Fo*(dy**2+dx**2+Bi*dy**2))
             if BC_setup[2]==3:
                 Bi=bc3[0]*dy/k
-                T[0,1:-1]=(2*Fo*Bi*bc3[1]*dx**2*dy/k+2*Fo*dx**2*T[1,1:-1]\
-                 +Fo*dy**2*(T[0,:-2]+T[0,2:])+dx*dy*Tprev[0,1:-1])\
+                Tc2[0,1:-1]=(2*Fo*Bi*bc3[1]*dx**2+2*Fo*dx**2*Tc2[1,1:-1]\
+                 +Fo*dy**2*(Tc2[0,:-2]+Tc2[0,2:])+dx*dy*Tprev[0,1:-1])\
                  /(dx*dy+2*Fo*(dy**2+dx**2+Bi*dx**2))
             if BC_setup[3]==3:
                 Bi=bc4[0]*dy/k
-                T[-1,1:-1]=(2*Fo*Bi*bc4[1]*dx**2*dy/k+2*Fo*dx**2*T[-2,1:-1]\
-                 +Fo*dy**2*(T[-1,:-2]+T[-1,2:])+dx*dy*Tprev[-1,1:-1])\
+                Tc2[-1,1:-1]=(2*Fo*Bi*bc4[1]*dx**2+2*Fo*dx**2*Tc2[-2,1:-1]\
+                 +Fo*dy**2*(Tc2[-1,:-2]+Tc2[-1,2:])+dx*dy*Tprev[-1,1:-1])\
                  /(dx*dy+2*Fo*(dy**2+dx**2+Bi*dx**2))
             
             diff=numpy.sum(numpy.abs(T[:]-Tc2[:]))/numpy.sum(numpy.abs(T[:]))
@@ -265,9 +270,8 @@ def TransSolve(is_explicit, T, dxy, k, Fo, conv_param, BC_setup, bc1, bc2, bc3, 
             print(diff)
             T=Tc2.copy()
     if count==1000:
-        print 'Convergence problem'
         error=1
-    return T, error
+    return T, error, Fo
     
 # 3D plotter
 def PlotXYT(X, Y, T, T_lower_lim, T_upper_lim):
@@ -282,8 +286,8 @@ def PlotXYT(X, Y, T, T_lower_lim, T_upper_lim):
 # ------------------Setup-----------------------------------
 L=4.0 # Length of plate (in x direction)
 W=4.0 # Width of plate (in y direction)
-Nx=10 # Number of nodes across length
-Ny=10 # Number of nodes across width
+Nx=13 # Number of nodes across length
+Ny=13 # Number of nodes across width
 k=25 # Thermal conductivity (W/m/K)
 rho=8000 # Density (kg/m^3)
 Cp=800 # Specific heat (J/kg/K)
@@ -294,7 +298,7 @@ T=numpy.zeros((Ny, Nx))
 
 #       Convergence
 conv=.001 # Convergence target (SS and implicit trans solvers)
-Fo=0.25 # Fourier number
+Fo=0.2 # Fourier number
 timeSteps=10 # number of time steps (transient)
 alpha=1 # Relaxation parameter (<1-under, >1-over)
 
@@ -303,54 +307,66 @@ T[:, :]=600
 dt=Fo*rho*Cp*dx*dy/k
 
 #       BCs on ends of length
-Tx1=700 #                        SMALLEST x coordinate
+#Tx1=300 #                        SMALLEST x coordinate
 qx1=1000 # Heat flux BC
 #hx1=50 # Convective heat transfer coefficient (W/m^2/K)
-#Tinfx1=273 # Freestream temperature
-Tx2=300 #                       LARGEST x coordinate
-qx2=-100 # Heat flux BC
+#Tinfx1=300 # Freestream temperature
+#Tx2=300 #                       LARGEST x coordinate
+qx2=1000 # Heat flux BC
 #hx2=50 # Convective heat transfer coefficient (W/m^2/K)
-#Tinfx2=273 # Freestream temperature
+#Tinfx2=300 # Freestream temperature
 
 #       BCs on ends of width
 Ty1=300 #                        SMALLEST y coordinate
-qy1=1000 # Heat flux BC
+#qy1=1000 # Heat flux BC
 #hy1=50 # Convective heat transfer coefficient (W/m^2/K)
-#Tinfy1=273 # Freestream temperature
-Ty2=700 #                        LARGEST y coordinate
-qy2=-100 # Heat flux BC
+#Tinfy1=300 # Freestream temperature
+Ty2=300 #                        LARGEST y coordinate
+#qy2=1000 # Heat flux BC
 #hy2=50 # Convective heat transfer coefficient (W/m^2/K)
-#Tinfy2=273 # Freestream temperature
+#Tinfy2=300 # Freestream temperature
 
 # ----------------Solve and Plot (uncomment desired settings)
 x=numpy.linspace(0, L, Nx)
 y=numpy.linspace(0, W, Ny)
 X, Y = numpy.meshgrid(x, y)
 
-#T,error=SteadySolve(T, (dx,dy), k, (conv,alpha), \
-#                    (1,1,1,1), Tx1, Tx2, Ty1, Ty2)
+T,error=SteadySolve(T, (dx,dy), k, (conv,alpha), \
+                    (2,2,1,1), qx1, qx2, Ty1, Ty2)
+PlotXYT(X, Y, T, 300, 700)
+T[:, :]=600
+alpha=1
 for i in range(timeSteps):
     # Change a BC with time
 #    if i%2==0:
 #        Tx1=Tx1-50
-#    T,error=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha),\
+#    T,error,Fo=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha),\
 #                       (1,1,1,1), Tx1, Tx2, Ty1, Ty2)
-    T,error=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha),\
-                       (1,1,1,1), Tx1, Tx2, Ty1, Ty2)
-    if i==timeSteps/2:
-        PlotXYT(X,Y,T,300,700)
+    T,error,Fo=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha),\
+                       (2,2,1,1), qx1, qx2, Ty1, Ty2)
+    #(1,1,3,3), Tx1, Tx2, (hy1, Tinfy1), (hy2, Tinfy2))
+    #(1,1,2,2), Tx1, Tx2, qy1, qy2)
+    if error==1:
+        print 'Convergence problem at time step %i'%i
+        break
+
+#    if i==timeSteps/2:
+#        PlotXYT(X,Y,T,300,700)
 #T,error=TransSolve(0, T, (dx,dy), k, Fo, (conv,alpha), \
 #                   (1,1,1,1), Tx1, Tx2, Ty1, Ty2)
 
 PlotXYT(X, Y, T, 300, 700)
 
-#T,error=SteadySolve(T, (dx,dy), k, (conv, alpha),\
-#              (2,2,2,2), qx1, qx2, qy1, qy2)
-#PlotXYT(X, Y, T, 0, 700)
-
-#print 'Transient model (implicit) with convective and temperature BCs. dt=%.2fs for %i timesteps\nResiduals:'%(dt,timeSteps)
-#for i in range(timeSteps):
-#    T,error=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha), (1,1,1,1), 700, 300, 300, 700)
-#    T,error=TransSolve(0, T, (dx,dy), k, Fo, (conv,alpha), (1,1,1,1), 700, 300, 300, 700)
-#PlotXYT(X, Y, T, 300, 700)
-
+# 2D plots
+#ploty=2
+#pyplot.plot(X[1,:], T[int(ploty/dy),:])
+#pyplot.xlabel('X')
+#pyplot.ylabel('T')
+##pyplot.title('Temperature distribution')
+#
+#plotx=2
+#pyplot.figure()
+#pyplot.plot(Y[:,1], T[:,int(plotx/dx)])
+#pyplot.xlabel('Y')
+#pyplot.ylabel('T')
+##pyplot.title('Temperature distribution at X=%i'%plotx)
