@@ -4,7 +4,7 @@ Started on Wed Sep 12 21:33:59 2018
 
 @author: Joseph
 
-This is intended to be a 2D Navier-Stokes equation solver
+This is intended to be a 2D Incompressible Navier-Stokes equation solver
 
 Poisson solver:
     -2nd order Central difference schemes for bulk of domain
@@ -37,6 +37,7 @@ v=numpy.zeros((Ny, Nx))
 p=numpy.zeros((Ny, Nx))
 dx=L/(Nx-1)
 dy=W/(Ny-1)
+nu=mu/rho
 
 # Boundary conditions
 
@@ -44,8 +45,9 @@ dy=W/(Ny-1)
 #-------------------------------- Solve
 
 # Poisson equation for pressure (main)
-p[2:-2,2:-2]=(dy**2*(p[3:-1,2:-2]+p[1:-3])+dx**2*(p[2:-2,3:-1]+p[2:-2,1:-3]))/(2*(dx**2+dy**2)) \
-+(1/(2*(dx**2+dy**2)))*(rho*dy**2/4*(u[2:-2,3:-1]-u[2:-2,1:-3])**2+rho*dx**2/4*(v[3:-1,2:-2]-v[1:-3,2:-2])**2 \
+pn=p.copy()
+pn[2:-2,2:-2]=(dy**2*(p[3:-1,2:-2]+p[1:-3])+dx**2*(p[2:-2,3:-1]+p[2:-2,1:-3]))/(2*(dx**2+dy**2)) \
+  +(1/(2*(dx**2+dy**2)))*(rho*dy**2/4*(u[2:-2,3:-1]-u[2:-2,1:-3])**2+rho*dx**2/4*(v[3:-1,2:-2]-v[1:-3,2:-2])**2 \
   +rho*dx*dy/2*(u[3:-1,2:-2]-u[1:-3])*(v[2:-2,3:-1]-v[2:-2,1:-3])\
   +u[2:-2,3:-1]*(-rho*dx*dy**2/2/dt+rho*dy**2*u[2:-2,2:-2]+dx*mu+dy**2/dx*mu)\
   +u[2:-2,1:-3]*(rho*dx*dy**2/2/dt+rho*dy**2*u[2:-2,2:-2]-dx*mu-dy**2/dx*mu)\
@@ -62,5 +64,23 @@ p[2:-2,2:-2]=(dy**2*(p[3:-1,2:-2]+p[1:-3])+dx**2*(p[2:-2,3:-1]+p[2:-2,1:-3]))/(2
   +v[1:-3,2:-2]*(rho*dx**2*dy/2/dt+rho*dx**2*v[2:-2,2:-2]-dy*mu-dx**2/dy*mu) \
   -2*dx**2*v[2:-2,2:-2]**2 + dx**2/2/dy*mu*(v[:-4,2:-2]-v[4:,2:-2]))
   
-
 # Poisson equation for pressure (first nodes inside BCs)
+
+
+
+# Solve momentum equations (explicit, first order for time)
+un=u.copy()
+un[1:-1,1:-1]=dt/(2*rho*dx)*(p[1:-1,:-2]+p[1:-1,2:]) \
+  +u[1:-1,2:]*(dt*nu/dx**2-dt/2/dx*u[1:-1,1:-1]) \
+  +u[1:-1,:-2]*(dt*nu/dx**2+dt/2/dx*u[1:-1,1:-1]) \
+  +u[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*v[1:-1,1:-1]) \
+  +u[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*v[1:-1,1:-1]) \
+  +u[1:-1,1:-1]*(1-2*nu*dt*(1/dx**2-1/dy**2))
+
+vn=v.copy()
+vn[1:-1,1:-1]=dt/(2*rho*dy)*(p[:-2,1:-1]-p[2:,1:-1]) \
+  +v[1:-1,2:]*(dt*nu/dx**2-dt/2/dx*u[1:-1,1:-1]) \
+  +v[1:-1,:-2]*(dt*nu/dx**2+dt/2/dx*v[1:-1,1:-1]) \
+  +v[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*v[1:-1,1:-1]) \
+  +v[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*v[1:-1,1:-1]) \
+  +v[1:-1,1:-1]*(1-2*dt*nu*(1/dx**2-1/dy**2))
