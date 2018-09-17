@@ -6,8 +6,11 @@ Started on Wed Sep 12 21:33:59 2018
 
 This is intended to be a 2D Incompressible Navier-Stokes equation solver
 
+Pressure distribution issue at boundaries. unsure if velocity field is correct
+
 Poisson solver:
     -2nd order Central difference schemes for bulk of domain
+    -1st order forward or backwards differences for nodes 1 away from boundaries
 
 Requirements:
     -Poisson solver for bulk AND first nodes from boundary (due to 3rd derivatives)
@@ -23,7 +26,8 @@ Function inputs:
     prop: array with fluid properties rho and mu respectively
     conv: convergence criteria
     dp_zero: array indicating which boundaries have 0 pressure gradients (normal to that boundary)
-    
+            1-zero pressure gradient, 0-regular BC 
+            e.g. 1010-zero pressure gradient at smallest x and y    
 
 """
 
@@ -67,37 +71,37 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
           +v[st+1:en+1,sin]*(-rho*dx**2*dy/2/dt+rho*dx**2*v[st:en,sin]+dy*mu) \
           +v[st-1:en-1,sin]*(rho*dx**2*dy/2/dt+rho*dx**2*v[st:en,sin]-dy*mu-dx**2/dy*mu) \
           -2*dx**2*v[st:en,sin]**2 \
-          +fdv(dx**2/dy*mu*v[st:en,sin] -dx**2/dy*mu*v[st+fdv:en+fdv,sin] \
-          -dx**2/dy*mu*(v[st+fdv*3:en+fdv*3,sin]-3*v[st+fdv*2:en+fdv*2,sin])))
+          +fdv*(dx**2/dy*mu*v[st:en,sin] -dx**2/dy*mu*v[st+fdv:en+fdv,sin] \
+          -dx**2/dy*mu*(v[4:,sin]-3*v[(st+fdv*2):(en+fdv*2),sin])))
         st=-4
         en=-1
         fdv=-1
-        pn[st:en,sin]=(dy**2*(p[st+1:en+1,sin]+p[st-1:en-1,sin])+dx**2*(p[st:en,sin+1]+p[st:en,sin-1]))/(2*(dx**2+dy**2)) \
-          +(1/(2*(dx**2+dy**2)))*(rho*dy**2/4*(u[st:en,sin+1]-u[st:en,sin-1])**2+rho*dx**2/4*(v[st+1:en+1,sin]-v[st-1:en-1,sin])**2 \
-          +rho*dx*dy/2*(u[st+1:en+1,sin]-u[st-1:en-1,sin])*(v[st:en,sin+1]-v[st:en,sin-1])\
+        pn[st:en,sin]=(dy**2*(p[st+1:,sin]+p[st-1:en-1,sin])+dx**2*(p[st:en,sin+1]+p[st:en,sin-1]))/(2*(dx**2+dy**2)) \
+          +(1/(2*(dx**2+dy**2)))*(rho*dy**2/4*(u[st:en,sin+1]-u[st:en,sin-1])**2+rho*dx**2/4*(v[st+1:,sin]-v[st-1:en-1,sin])**2 \
+          +rho*dx*dy/2*(u[st+1:,sin]-u[st-1:en-1,sin])*(v[st:en,sin+1]-v[st:en,sin-1])\
           +u[st:en,sin+1]*(-rho*dx*dy**2/2/dt+rho*dy**2*u[st:en,sin]+dx*mu)\
           +u[st:en,sin-1]*(rho*dx*dy**2/2/dt+rho*dy**2*u[st:en,sin]-dx*mu-dy**2/dx*mu)\
-          +u[st+1:en+1,sin+1]*(rho*dy*dx/4*v[st:en,sin+1]-dx*mu/2) \
-          +u[st+1:en+1,sin-1]*(-rho*dx*dy/4*v[st+1:en+1,sin]-dx*mu/2) \
+          +u[st+1:,sin+1]*(rho*dy*dx/4*v[st:en,sin+1]-dx*mu/2) \
+          +u[st+1:,sin-1]*(-rho*dx*dy/4*v[st+1:,sin]-dx*mu/2) \
           +u[st-1:en-1,sin+1]*(-rho*dy*dx/4*v[st-1:en-1,sin]+dx*mu/2) \
           +u[st-1:en-1,sin-1]*(rho*dx*dy/4*v[st:en,sin-1]+dx*mu/2) \
           -2*rho*dy**2*u[st:en,sin]**2 \
           +fdu*(dy**2/dx*mu*u[st:en,sin] -3*dy**2/dx*mu*u[st:en,sin+fdu]\
           - dy**2*mu/dx*(u[st:en,sin+fdu*3]-3*u[st:en,sin+fdu*2])) \
-          +v[st+1:en+1,sin+1]*(rho*dx*dy/4*u[st:en,sin+1]-dy*mu/2) \
+          +v[st+1:,sin+1]*(rho*dx*dy/4*u[st:en,sin+1]-dy*mu/2) \
           +v[st-1:en-1,sin+1]*(-rho*dx*dy/4*u[st:en,sin+1]+dy*mu/2) \
-          +v[st+1:en+1,sin-1]*(-rho*dx*dy/4*u[st:en,sin-1]-dy*mu/2) \
+          +v[st+1:,sin-1]*(-rho*dx*dy/4*u[st:en,sin-1]-dy*mu/2) \
           +v[st-1:en-1,sin-1]*(rho*dx*dy/4*u[st:en,sin-1]+dy*mu/2) \
-          +v[st+1:en+1,sin]*(-rho*dx**2*dy/2/dt+rho*dx**2*v[st:en,sin]+dy*mu) \
+          +v[st+1:,sin]*(-rho*dx**2*dy/2/dt+rho*dx**2*v[st:en,sin]+dy*mu) \
           +v[st-1:en-1,sin]*(rho*dx**2*dy/2/dt+rho*dx**2*v[st:en,sin]-dy*mu-dx**2/dy*mu) \
           -2*dx**2*v[st:en,sin]**2 \
-          +fdv(dx**2/dy*mu*v[st:en,sin] -dx**2/dy*mu*v[st+fdv:en+fdv,sin] \
+          +fdv*(dx**2/dy*mu*v[st:en,sin] -dx**2/dy*mu*v[st+fdv:en+fdv,sin] \
           -dx**2/dy*mu*(v[st+fdv*3:en+fdv*3,sin]-3*v[st+fdv*2:en+fdv*2,sin])))
 
         # Poisson equation for pressure (first nodes inside boundary; large y)
         st=2
         en=-3
-        sin=-1
+        sin=-2
         pn[sin,st:en]=(dy**2*(p[sin+1,st:en]+p[sin-1,st:en])+dx**2*(p[sin,st+1:en+1]+p[sin,st-1:en-1]))/(2*(dx**2+dy**2)) \
           +(1/(2*(dx**2+dy**2)))*(rho*dy**2/4*(u[sin,st+1:en+1]-u[sin,st-1:en-1])**2+rho*dx**2/4*(v[sin+1,st:en]-v[sin-1,st:en])**2 \
           +rho*dx*dy/2*(u[sin+1,st:en]-u[sin-1,st:en])*(v[sin,st+1:en+1]-v[sin,st-1:en-1])\
@@ -109,7 +113,7 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
           +u[sin-1,st-1:en-1]*(rho*dx*dy/4*v[sin,st-1:en-1]+dx*mu/2) \
           -2*rho*dy**2*u[sin,st:en]**2 \
           +fdu*(dy**2/dx*mu*u[sin,st:en] -3*dy**2/dx*mu*u[sin,st+fdu:en+fdu]\
-          - dy**2*mu/dx*(u[sin,st+fdu*3:en+fdu*3]-3*u[sin,st+fdu*2:en+fdu*2])) \
+          - dy**2*mu/dx*(u[sin,st+fdu*3:]-3*u[sin,st+fdu*2:en+fdu*2])) \
           +v[sin+1,st+1:en+1]*(rho*dx*dy/4*u[sin,st+1:en+1]-dy*mu/2) \
           +v[sin-1,st+1:en+1]*(-rho*dx*dy/4*u[sin,st+1:en+1]+dy*mu/2) \
           +v[sin+1,st-1:en-1]*(-rho*dx*dy/4*u[sin,st-1:en-1]-dy*mu/2) \
@@ -117,32 +121,32 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
           +v[sin+1,st:en]*(-rho*dx**2*dy/2/dt+rho*dx**2*v[sin,st:en]+dy*mu) \
           +v[sin-1,st:en]*(rho*dx**2*dy/2/dt+rho*dx**2*v[sin,st:en]-dy*mu-dx**2/dy*mu) \
           -2*dx**2*v[sin,st:en]**2 \
-          +fdv(dx**2/dy*mu*v[sin,st:en] -dx**2/dy*mu*v[sin+fdv,st:en] \
+          +fdv*(dx**2/dy*mu*v[sin,st:en] -dx**2/dy*mu*v[sin+fdv,st:en] \
           -dx**2/dy*mu*(v[sin+fdv*3,st:en]-3*v[sin+fdv*2,st:en])))
         
         st=-4
         en=-1
         fdu=-1
-        pn[sin,st:en]=(dy**2*(p[sin+1,st:en]+p[sin-1,st:en])+dx**2*(p[sin,st+1:en+1]+p[sin,st-1:en-1]))/(2*(dx**2+dy**2)) \
-          +(1/(2*(dx**2+dy**2)))*(rho*dy**2/4*(u[sin,st+1:en+1]-u[sin,st-1:en-1])**2+rho*dx**2/4*(v[sin+1,st:en]-v[sin-1,st:en])**2 \
-          +rho*dx*dy/2*(u[sin+1,st:en]-u[sin-1,st:en])*(v[sin,st+1:en+1]-v[sin,st-1:en-1])\
-          +u[sin,st+1:en+1]*(-rho*dx*dy**2/2/dt+rho*dy**2*u[sin,st:en]+dx*mu)\
+        pn[sin,st:en]=(dy**2*(p[sin+1,st:en]+p[sin-1,st:en])+dx**2*(p[sin,st+1:]+p[sin,st-1:en-1]))/(2*(dx**2+dy**2)) \
+          +(1/(2*(dx**2+dy**2)))*(rho*dy**2/4*(u[sin,st+1:]-u[sin,st-1:en-1])**2+rho*dx**2/4*(v[sin+1,st:en]-v[sin-1,st:en])**2 \
+          +rho*dx*dy/2*(u[sin+1,st:en]-u[sin-1,st:en])*(v[sin,st+1:]-v[sin,st-1:en-1])\
+          +u[sin,st+1:]*(-rho*dx*dy**2/2/dt+rho*dy**2*u[sin,st:en]+dx*mu)\
           +u[sin,st-1:en-1]*(rho*dx*dy**2/2/dt+rho*dy**2*u[sin,st:en]-dx*mu-dy**2/dx*mu)\
-          +u[sin+1,st+1:en+1]*(rho*dy*dx/4*v[sin,st+1:en+1]-dx*mu/2) \
+          +u[sin+1,st+1:]*(rho*dy*dx/4*v[sin,st+1:]-dx*mu/2) \
           +u[sin+1,st-1:en-1]*(-rho*dx*dy/4*v[sin+1,st:en]-dx*mu/2) \
-          +u[sin-1,st+1:en+1]*(-rho*dy*dx/4*v[sin-1,st:en]+dx*mu/2) \
+          +u[sin-1,st+1:]*(-rho*dy*dx/4*v[sin-1,st:en]+dx*mu/2) \
           +u[sin-1,st-1:en-1]*(rho*dx*dy/4*v[sin,st-1:en-1]+dx*mu/2) \
           -2*rho*dy**2*u[sin,st:en]**2 \
           +fdu*(dy**2/dx*mu*u[sin,st:en] -3*dy**2/dx*mu*u[sin,st+fdu:en+fdu]\
           - dy**2*mu/dx*(u[sin,st+fdu*3:en+fdu*3]-3*u[sin,st+fdu*2:en+fdu*2])) \
-          +v[sin+1,st+1:en+1]*(rho*dx*dy/4*u[sin,st+1:en+1]-dy*mu/2) \
-          +v[sin-1,st+1:en+1]*(-rho*dx*dy/4*u[sin,st+1:en+1]+dy*mu/2) \
+          +v[sin+1,st+1:]*(rho*dx*dy/4*u[sin,st+1:]-dy*mu/2) \
+          +v[sin-1,st+1:]*(-rho*dx*dy/4*u[sin,st+1:]+dy*mu/2) \
           +v[sin+1,st-1:en-1]*(-rho*dx*dy/4*u[sin,st-1:en-1]-dy*mu/2) \
           +v[sin-1,st-1:en-1]*(rho*dx*dy/4*u[sin,st-1:en-1]+dy*mu/2) \
           +v[sin+1,st:en]*(-rho*dx**2*dy/2/dt+rho*dx**2*v[sin,st:en]+dy*mu) \
           +v[sin-1,st:en]*(rho*dx**2*dy/2/dt+rho*dx**2*v[sin,st:en]-dy*mu-dx**2/dy*mu) \
           -2*dx**2*v[sin,st:en]**2 \
-          +fdv(dx**2/dy*mu*v[sin,st:en] -dx**2/dy*mu*v[sin+fdv,st:en] \
+          +fdv*(dx**2/dy*mu*v[sin,st:en] -dx**2/dy*mu*v[sin+fdv,st:en] \
           -dx**2/dy*mu*(v[sin+fdv*3,st:en]-3*v[sin+fdv*2,st:en])))
         # Poisson equation for pressure (first nodes inside boundary; large x)
         st=3
@@ -167,7 +171,7 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
           +v[st+1:en+1,sin]*(-rho*dx**2*dy/2/dt+rho*dx**2*v[st:en,sin]+dy*mu) \
           +v[st-1:en-1,sin]*(rho*dx**2*dy/2/dt+rho*dx**2*v[st:en,sin]-dy*mu-dx**2/dy*mu) \
           -2*dx**2*v[st:en,sin]**2 \
-          +fdv(dx**2/dy*mu*v[st:en,sin] -dx**2/dy*mu*v[st+fdv:en+fdv,sin] \
+          +fdv*(dx**2/dy*mu*v[st:en,sin] -dx**2/dy*mu*v[st+fdv:en+fdv,sin] \
           -dx**2/dy*mu*(v[st+fdv*3:en+fdv*3,sin]-3*v[st+fdv*2:en+fdv*2,sin])))  
         
         st=1
@@ -192,7 +196,7 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
           +v[st+1:en+1,sin]*(-rho*dx**2*dy/2/dt+rho*dx**2*v[st:en,sin]+dy*mu) \
           +v[st-1:en-1,sin]*(rho*dx**2*dy/2/dt+rho*dx**2*v[st:en,sin]-dy*mu-dx**2/dy*mu) \
           -2*dx**2*v[st:en,sin]**2 \
-          +fdv(dx**2/dy*mu*v[st:en,sin] -dx**2/dy*mu*v[st+fdv:en+fdv,sin] \
+          +fdv*(dx**2/dy*mu*v[st:en,sin] -dx**2/dy*mu*v[st+fdv:en+fdv,sin] \
           -dx**2/dy*mu*(v[st+fdv*3:en+fdv*3,sin]-3*v[st+fdv*2:en+fdv*2,sin])))
         # Poisson equation for pressure (first nodes inside boundary; small y)
         st=3
@@ -217,7 +221,7 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
           +v[sin+1,st:en]*(-rho*dx**2*dy/2/dt+rho*dx**2*v[sin,st:en]+dy*mu) \
           +v[sin-1,st:en]*(rho*dx**2*dy/2/dt+rho*dx**2*v[sin,st:en]-dy*mu-dx**2/dy*mu) \
           -2*dx**2*v[sin,st:en]**2 \
-          +fdv(dx**2/dy*mu*v[sin,st:en] -dx**2/dy*mu*v[sin+fdv,st:en] \
+          +fdv*(dx**2/dy*mu*v[sin,st:en] -dx**2/dy*mu*v[sin+fdv,st:en] \
           -dx**2/dy*mu*(v[sin+fdv*3,st:en]-3*v[sin+fdv*2,st:en])))
         
         st=2
@@ -242,7 +246,7 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
           +v[sin+1,st:en]*(-rho*dx**2*dy/2/dt+rho*dx**2*v[sin,st:en]+dy*mu) \
           +v[sin-1,st:en]*(rho*dx**2*dy/2/dt+rho*dx**2*v[sin,st:en]-dy*mu-dx**2/dy*mu) \
           -2*dx**2*v[sin,st:en]**2 \
-          +fdv(dx**2/dy*mu*v[sin,st:en] -dx**2/dy*mu*v[sin+fdv,st:en] \
+          +fdv*(dx**2/dy*mu*v[sin,st:en] -dx**2/dy*mu*v[sin+fdv,st:en] \
           -dx**2/dy*mu*(v[sin+fdv*3,st:en]-3*v[sin+fdv*2,st:en])))
         
         # Poisson equation for pressure (main)
@@ -275,43 +279,60 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
             p[-1,1:-1]=p[-2,1:-1]
           # Convergence check
         diff=numpy.sum(numpy.abs(p[:]-pn[:]))/numpy.sum(numpy.abs(p[:]))
+        print(diff)
         p=pn.copy()
         count=count+1
     if count==1000:
         print 'Convergence problems resolving the pressure distribution'
+        print 'Residuals: %.4f'%diff
         error=1
     return p,error
 
 
 #-------------------------------- Setup
-L=3.0 # Length (x coordinate max)
-W=1.0 # Width
-Nx=10 # Number of nodes in x
-Ny=4 # Number of nodes in y
-rho=998 # Density of fluid (kg/m^3)
-mu=0.001 # Dynamic viscosity of fluid (Pa s)
-dt=0.01 # Time step size (s)
-Nt=100 # Number of time steps
+L=2.0 # Length (x coordinate max)
+W=2.0 # Width
+Nx=41 # Number of nodes in x
+Ny=41 # Number of nodes in y
+rho=1.0 # Density of fluid (kg/m^3)
+mu=0.1*rho # Dynamic viscosity of fluid (Pa s)
+dt=0.001 # Time step size (s)
+Nt=1000 # Number of time steps
 
 u=numpy.zeros((Ny, Nx))
 v=numpy.zeros((Ny, Nx))
-p=numpy.zeros((Ny, Nx))
+p=numpy.ones((Ny, Nx))
+x=numpy.linspace(0, L, Nx)
+y=numpy.linspace(0, W, Ny)
+X,Y=numpy.meshgrid(x,y)
 dx=L/(Nx-1)
 dy=W/(Ny-1)
 nu=mu/rho
 
 # Convergence
-conv=0.001 # convergence criteria
+conv=0.06 # convergence criteria
 
 # Boundary conditions
+u[:,0]=0
+v[:,0]=0
+u[:,-1]=0
+v[:,-1]=0
+u[0,:]=0
+v[0,:]=0
+u[-1,:]=1
+v[-1,:]=0
 
+p[-1,:]=0
+zeropres_grad=(1,1,1,0) # Boundaries with 0 pressure gradient
 
 #-------------------------------- Solve
 
 for i in range(Nt):
     
+    print 'Time step %i \n'%i
+    print 'Pressure residuals:'
     # Solve pressure field
-    p,error=ResolvePress(p, u, v, (dx, dy, dt), (rho, mu), conv)
+    p,error=ResolvePress(p, u, v, (dx, dy, dt), (rho, mu), conv, zeropres_grad)
     if error==1:
         print 'Run aborted at time step %i'%i
         break
@@ -331,3 +352,14 @@ for i in range(Nt):
       +v[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*v[1:-1,1:-1]) \
       +v[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*v[1:-1,1:-1]) \
       +v[1:-1,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2))
+      
+fig = pyplot.figure(figsize=(5,5), dpi=100)
+# plotting the pressure field as a contour
+#pyplot.contourf(X, Y, p, alpha=0.5, cmap=cm.viridis)  
+#pyplot.colorbar()
+# plotting the pressure field outlines
+#pyplot.contour(X, Y, p, cmap=cm.viridis)  
+# plotting velocity field
+pyplot.quiver(X[::4, ::4], Y[::4, ::4], u[::4, ::4], v[::4, ::4]) 
+pyplot.xlabel('X')
+pyplot.ylabel('Y');
