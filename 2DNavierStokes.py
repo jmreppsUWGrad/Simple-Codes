@@ -6,7 +6,10 @@ Started on Wed Sep 12 21:33:59 2018
 
 This is intended to be a 2D Incompressible Navier-Stokes equation solver
 
-Pressure distribution issue at boundaries. unsure if velocity field is correct
+THIS SCRIPT:
+    After modifying the copying routine for u, un, v and vn, it seems to replicate
+    Step 11 of 12 steps to N-S with some of the pressure distribution being a 
+    bit different.
 
 Poisson solver:
     -2nd order Central difference schemes for bulk of domain
@@ -25,9 +28,10 @@ Function inputs:
     dxyt: array with dx, dy and dt respectively
     prop: array with fluid properties rho and mu respectively
     conv: convergence criteria
-    dp_zero: array indicating which boundaries have 0 pressure gradients (normal to that boundary)
-            1-zero pressure gradient, 0-regular BC 
-            e.g. 1010-zero pressure gradient at smallest x and y    
+    dp_zero: array indicating pressre BCs
+            2-periodic, 1-zero pressure gradient, 0-regular BC 
+            e.g. 1010-zero pressure gradient at smallest x and y
+            2010-periodic BC in x (implied both sides), 0 pressure grad on small y
 
 """
 
@@ -44,6 +48,7 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
     diff=10
     error=0
     pn=p.copy()
+    pn2=numpy.empty_like(p)
     while (diff>conv) and (count<1000):
         
         # Poisson equation for pressure (first nodes inside boundary; small x)
@@ -270,15 +275,21 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
         
         # Enforce dp=0 BCs
         if dp_zero[0]==1:
-            p[1:-1,0]=p[1:-1,1]
+            pn[:,0]=pn[:,1]
         if dp_zero[1]==1:
-            p[1:-1,-1]=p[1:-1,-2]
+            pn[:,-1]=pn[:,-2]
         if dp_zero[2]==1:
-            p[0,1:-1]=p[1,1:-1]
+            pn[0,:]=pn[1,:]
         if dp_zero[3]==1:
-            p[-1,1:-1]=p[-2,1:-1]
+            pn[-1,:]=pn[-2,:]
+        # Periodic BCs (pairs are implied)
+        if dp_zero[0]==2 or dp_zero[1]==2:
+            pn[:,-1]=pn[:,0]
+        if dp_zero[2]==2 or dp_zero[3]==2:
+            pn[-1,:]=pn[0,:]
           # Convergence check
         diff=numpy.sum(numpy.abs(p[:]-pn[:]))/numpy.sum(numpy.abs(p[:]))
+#        print(numpy.sum(numpy.abs(pn2[:]-pn[:])))
         print(diff)
         p=pn.copy()
         count=count+1
@@ -297,11 +308,13 @@ Ny=41 # Number of nodes in y
 rho=1.0 # Density of fluid (kg/m^3)
 mu=0.1*rho # Dynamic viscosity of fluid (Pa s)
 dt=0.001 # Time step size (s)
-Nt=1000 # Number of time steps
+Nt=100 # Number of time steps
 
 u=numpy.zeros((Ny, Nx))
+un=numpy.empty_like(u)
 v=numpy.zeros((Ny, Nx))
-p=numpy.ones((Ny, Nx))
+vn=numpy.empty_like(v)
+p=numpy.zeros((Ny, Nx))
 x=numpy.linspace(0, L, Nx)
 y=numpy.linspace(0, W, Ny)
 X,Y=numpy.meshgrid(x,y)
@@ -310,20 +323,21 @@ dy=W/(Ny-1)
 nu=mu/rho
 
 # Convergence
-conv=0.06 # convergence criteria
+conv=0.01 # convergence criteria
 
 # Boundary conditions
 u[:,0]=0
-v[:,0]=0
 u[:,-1]=0
-v[:,-1]=0
 u[0,:]=0
-v[0,:]=0
 u[-1,:]=1
+v[:,-1]=0
+v[:,0]=0
+v[0,:]=0
 v[-1,:]=0
 
 p[-1,:]=0
-zeropres_grad=(1,1,1,0) # Boundaries with 0 pressure gradient
+p[-4,:]=1
+pres_BCs=(1,1,1,0) # Boundaries with 0 pressure gradient or periodic BCs
 
 #-------------------------------- Solve
 
@@ -332,34 +346,66 @@ for i in range(Nt):
     print 'Time step %i \n'%i
     print 'Pressure residuals:'
     # Solve pressure field
-    p,error=ResolvePress(p, u, v, (dx, dy, dt), (rho, mu), conv, zeropres_grad)
+    
+#    pn=p.copy()
+#    diff=10
+#    count=1
+#    while (diff>conv) and (count<1000):
+#        pn=p.copy()
+#        p[1:-1, 1:-1] = (((pn[1:-1, 2:] + pn[1:-1, 0:-2]) * dy**2 + \
+#         (pn[2:, 1:-1] + pn[0:-2, 1:-1]) * dx**2) / (2 * (dx**2 + dy**2)) \
+#            -dx**2 * dy**2 / (2 * (dx**2 + dy**2)) * (rho * (1 / dt * ((u[1:-1, 2:] - u[1:-1, 0:-2]) \
+#            / (2 * dx) + (v[2:, 1:-1] - v[0:-2, 1:-1]) / (2 * dy)) \
+#              -((u[1:-1, 2:] - u[1:-1, 0:-2]) / (2 * dx))**2 \
+#              -2 * ((u[2:, 1:-1] - u[0:-2, 1:-1]) / (2 * dy) \
+#                    *(v[1:-1, 2:] - v[1:-1, 0:-2]) / (2 * dx))\
+#                    -((v[2:, 1:-1] - v[0:-2, 1:-1]) / (2 * dy))**2)))
+#        
+#        p[:, -1] = p[:, -2] ##dp/dy = 0 at x = 2
+#        p[0, :] = p[1, :]  ##dp/dy = 0 at y = 0
+#        p[:, 0] = p[:, 1]    ##dp/dx = 0 at x = 0
+#        p[-1, :] = 0
+#        diff=numpy.sum(numpy.abs(p[:]-pn[:]))/numpy.sum(p[:])
+#        print(diff)
+#        count=1
+#    if count==1000:
+#        print 'Pressure convergence issue'
+#        break
+    
+    p,error=ResolvePress(p, u, v, (dx, dy, dt), (rho, mu), conv, pres_BCs)
     if error==1:
         print 'Run aborted at time step %i'%i
         break
     # Solve momentum equations (explicit, first order for time)
     un=u.copy()
-    un[1:-1,1:-1]=dt/(2*rho*dx)*(p[1:-1,:-2]+p[1:-1,2:]) \
-      +u[1:-1,2:]*(dt*nu/dx**2-dt/2/dx*u[1:-1,1:-1]) \
-      +u[1:-1,:-2]*(dt*nu/dx**2+dt/2/dx*u[1:-1,1:-1]) \
-      +u[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*v[1:-1,1:-1]) \
-      +u[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*v[1:-1,1:-1]) \
-      +u[1:-1,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2))
-    
     vn=v.copy()
-    vn[1:-1,1:-1]=dt/(2*rho*dy)*(p[:-2,1:-1]-p[2:,1:-1]) \
-      +v[1:-1,2:]*(dt*nu/dx**2-dt/2/dx*u[1:-1,1:-1]) \
-      +v[1:-1,:-2]*(dt*nu/dx**2+dt/2/dx*v[1:-1,1:-1]) \
-      +v[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*v[1:-1,1:-1]) \
-      +v[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*v[1:-1,1:-1]) \
-      +v[1:-1,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2))
-      
-fig = pyplot.figure(figsize=(5,5), dpi=100)
+    u[1:-1,1:-1]=dt/(2*rho*dx)*(p[1:-1,:-2]-p[1:-1,2:]) \
+      +un[1:-1,2:]*(dt*nu/dx**2-dt/2/dx*un[1:-1,1:-1]) \
+      +un[1:-1,:-2]*(dt*nu/dx**2+dt/2/dx*un[1:-1,1:-1]) \
+      +un[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,1:-1]) \
+      +un[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,1:-1]) \
+      +un[1:-1,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2))
+    
+    v[1:-1,1:-1]=dt/(2*rho*dy)*(p[:-2,1:-1]-p[2:,1:-1]) \
+      +vn[1:-1,2:]*(dt*nu/dx**2-dt/2/dx*un[1:-1,1:-1]) \
+      +vn[1:-1,:-2]*(dt*nu/dx**2+dt/2/dx*vn[1:-1,1:-1]) \
+      +vn[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,1:-1]) \
+      +vn[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,1:-1]) \
+      +vn[1:-1,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2))
+    
+    # Periodic BCs
+#    u[1:-1,0]=u[1:-1,-1] # Periodic across x
+#    v[1:-1,0]=v[1:-1,-1]
+#    u[0,1:-1]=u[-1,1:-1] # Periodic across y
+#    v[0,1:-1]=v[-1,1:-1]
+    
+fig = pyplot.figure(figsize=(11,7), dpi=100)
 # plotting the pressure field as a contour
-#pyplot.contourf(X, Y, p, alpha=0.5, cmap=cm.viridis)  
-#pyplot.colorbar()
+pyplot.contourf(X, Y, p, alpha=0.5, cmap=cm.viridis)  
+pyplot.colorbar()
 # plotting the pressure field outlines
-#pyplot.contour(X, Y, p, cmap=cm.viridis)  
+pyplot.contour(X, Y, p, cmap=cm.viridis)  
 # plotting velocity field
-pyplot.quiver(X[::4, ::4], Y[::4, ::4], u[::4, ::4], v[::4, ::4]) 
+pyplot.quiver(X[::2, ::2], Y[::2, ::2], u[::2, ::2], v[::2, ::2]) 
 pyplot.xlabel('X')
 pyplot.ylabel('Y');
