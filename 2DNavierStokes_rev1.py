@@ -4,23 +4,25 @@ Started on Wed Sep 12 21:33:59 2018
 
 @author: Joseph
 
-This is intended to be a 2D Incompressible, unsteady Navier-Stokes equation solver
+This is a 2D Incompressible, unsteady Navier-Stokes equation solver
 
-Requirements:
-    -Poisson solver for bulk AND first nodes from boundary (due to 3rd derivatives)
-    -N-S solver 1st order (explicit) for time
-Desired:
-    -N-S solver 2nd order for time (requires 1st order for one time step)
-    -Gravity consideration
+FEATURES:
+    -2nd order central difference schemes for all spatial derivatives
+    -1st order time, explicit formulation
+    -able to compute periodic and 0 gradient BCs for pressure
+    -able to compute periodic BC for velocities
+    -Constant pressure gradient for Poiseuille flow possible (Cannot vary spatially)
 
 Poisson solver:
     -2nd order Central difference schemes for bulk of domain
     -1st order forward or backwards differences for nodes 1 away from boundaries
 
 THIS REVISION (rev1 from 2DNavierStokes.py):
-    Rewrote pressure solver without collecting terms
-    Manally rewrote each pressure calculation step
-    Confirmed it replicates Step 11 in 12 steps to N-S
+    -Rewrote pressure solver without collecting terms
+    -Manally rewrote each pressure calculation step
+    -Confirmed it replicates Step 11 in 12 steps to N-S
+    -After adding source terms, replicate parabolic velocity profile 
+    as seen in step 12 of 12 steps to N-S, but not to same velocity values
 
 Function inputs:
     p: pressure array
@@ -41,7 +43,7 @@ from matplotlib import pyplot, cm
 from mpl_toolkits.mplot3d import Axes3D
 
 # Poisson solver
-def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
+def ResolvePress(p, u, v, dxyt, prop, conv, YesRes, dp_zero):
     rho,mu=prop
     dx,dy,dt=dxyt
     count=1
@@ -158,17 +160,29 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
         
         st=2
         en=3
-        pn[st:en,sin]=dy**2/(2*dx**2+2*dy**2)*(p[st:en,sin+1]+p[st:en,sin-1])+dx**2/(2*dx**2+2*dy**2)*(p[st+1:en+1,sin]+p[st-1:en-1,sin]) \
-        -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[st:en,sin+1]-u[st:en,sin-1])/2/dx+(v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy) \
-        -u[st:en,sin]*(u[st:en,sin-1]-2*u[st:en,sin]+u[st:en,sin+1])/dx**2-((u[st:en,sin+1]-u[st:en,sin-1])/2/dx)**2\
-          -((v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy)**2-v[st:en,sin]*(v[st-1:en-1,sin]-2*v[st:en,sin]+v[st+1:en+1,sin])/dy**2 \
-          -(u[st:en,sin+1]*(v[st+1:en+1,sin+1]-v[st-1:en-1,sin+1])/4/dy/dx+v[st:en,sin+1]*(u[st+1:en+1,sin+1]-u[st-1:en-1,sin+1])/4/dy/dx) \
-          +u[st:en,sin-1]*(v[st+1:en+1,sin-1]-v[st-1:en-1,sin-1])/4/dy/dx+v[st:en,sin-1]*(u[st+1:en+1,sin-1]-u[st-1:en-1,sin-1])/4/dy/dx \
-          -2*(u[st+1:en+1,sin]-u[st-1:en-1,sin])*(v[st:en,sin+1]-v[st:en,sin-1])/4/dy/dx)\
-          +mu*((u[st+1:en+1,sin+1]-2*u[st:en,sin+1]+u[st-1:en-1,sin+1])/2/dx/dy**2-(u[st+1:en+1,sin-1]-2*u[st:en,sin-1]+u[st-1:en-1,sin-1])/2/dx/dy**2 \
-       +(v[st+1:en+1,sin+1]-2*v[st+1:en+1,sin]+v[st+1:en+1,sin-1])/2/dy/dx**2-(v[st-1:en-1,sin+1]-2*v[st-1:en-1,sin]+v[st-1:en-1,sin-1])/2/dy/dx**2 \
-       +(u[st:en,sin+3]-3*u[st:en,sin+2]+3*u[st:en,sin+1]-u[st:en,sin])/dx**3\
-       +(v[st+3:en+3,sin]-3*v[st+2:en+2,sin]+3*v[st+1:en+1,sin]-v[st:en,sin])/dy**3))
+        pn[sin,st:en]=dy**2/(2*dx**2+2*dy**2)*(p[sin,st+1:en+1]+p[sin,st-1:en-1])+dx**2/(2*dx**2+2*dy**2)*(p[sin+1,st:en]+p[sin-1,st:en]) \
+        -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[sin,st+1:en+1]-u[sin,st-1:en-1])/2/dx+(v[sin+1,st:en]-v[sin-1,st:en])/2/dy) \
+        -u[sin,st:en]*(u[sin,st-1:en-1]-2*u[sin,st:en]+u[sin,st+1:en+1])/dx**2-((u[sin,st+1:en+1]-u[sin,st-1:en-1])/2/dx)**2\
+          -((v[sin+1,st:en]-v[sin-1,st:en])/2/dy)**2-v[sin,st:en]*(v[sin-1,st:en]-2*v[sin,st:en]+v[sin+1,st:en])/dy**2 \
+          -(u[sin,st+1:en+1]*(v[sin+1,st+1:en+1]-v[sin-1,st+1:en+1])/4/dy/dx+v[sin,st+1:en+1]*(u[sin+1,st+1:en+1]-u[sin-1,st+1:en+1])/4/dy/dx) \
+          +u[sin,st-1:en-1]*(v[sin+1,st-1:en-1]-v[sin-1,st-1:en-1])/4/dy/dx+v[sin,st-1:en-1]*(u[sin+1,st-1:en-1]-u[sin-1,st-1:en-1])/4/dy/dx \
+          -2*(u[sin+1,st:en]-u[sin-1,st:en])*(v[sin,st+1:en+1]-v[sin,st-1:en-1])/4/dy/dx)\
+          +mu*((u[sin+1,st+1:en+1]-2*u[sin,st+1:en+1]+u[sin-1,st+1:en+1])/2/dx/dy**2-(u[sin+1,st-1:en-1]-2*u[sin,st-1:en-1]+u[sin-1,st-1:en-1])/2/dx/dy**2 \
+           +(v[sin+1,st+1:en+1]-2*v[sin+1,st:en]+v[sin+1,st-1:en-1])/2/dy/dx**2-(v[sin-1,st+1:en+1]-2*v[sin-1,st:en]+v[sin-1,st-1:en-1])/2/dy/dx**2 \
+           +(u[sin,st+3:en+3]-3*u[sin,st+2:en+2]+3*u[sin,st+1:en+1]-u[sin,st:en])/dx**3\
+           +(v[sin+3,st:en]-3*v[sin+2,st:en]+3*v[sin+1,st:en]-v[sin,st:en])/dy**3))
+    
+#        pn[st:en,sin]=dy**2/(2*dx**2+2*dy**2)*(p[st:en,sin+1]+p[st:en,sin-1])+dx**2/(2*dx**2+2*dy**2)*(p[st+1:en+1,sin]+p[st-1:en-1,sin]) \
+#        -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[st:en,sin+1]-u[st:en,sin-1])/2/dx+(v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy) \
+#        -u[st:en,sin]*(u[st:en,sin-1]-2*u[st:en,sin]+u[st:en,sin+1])/dx**2-((u[st:en,sin+1]-u[st:en,sin-1])/2/dx)**2\
+#          -((v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy)**2-v[st:en,sin]*(v[st-1:en-1,sin]-2*v[st:en,sin]+v[st+1:en+1,sin])/dy**2 \
+#          -(u[st:en,sin+1]*(v[st+1:en+1,sin+1]-v[st-1:en-1,sin+1])/4/dy/dx+v[st:en,sin+1]*(u[st+1:en+1,sin+1]-u[st-1:en-1,sin+1])/4/dy/dx) \
+#          +u[st:en,sin-1]*(v[st+1:en+1,sin-1]-v[st-1:en-1,sin-1])/4/dy/dx+v[st:en,sin-1]*(u[st+1:en+1,sin-1]-u[st-1:en-1,sin-1])/4/dy/dx \
+#          -2*(u[st+1:en+1,sin]-u[st-1:en-1,sin])*(v[st:en,sin+1]-v[st:en,sin-1])/4/dy/dx)\
+#          +mu*((u[st+1:en+1,sin+1]-2*u[st:en,sin+1]+u[st-1:en-1,sin+1])/2/dx/dy**2-(u[st+1:en+1,sin-1]-2*u[st:en,sin-1]+u[st-1:en-1,sin-1])/2/dx/dy**2 \
+#       +(v[st+1:en+1,sin+1]-2*v[st+1:en+1,sin]+v[st+1:en+1,sin-1])/2/dy/dx**2-(v[st-1:en-1,sin+1]-2*v[st-1:en-1,sin]+v[st-1:en-1,sin-1])/2/dy/dx**2 \
+#       +(u[st:en,sin+3]-3*u[st:en,sin+2]+3*u[st:en,sin+1]-u[st:en,sin])/dx**3\
+#       +(v[st+3:en+3,sin]-3*v[st+2:en+2,sin]+3*v[st+1:en+1,sin]-v[st:en,sin])/dy**3))
         
         # Poisson equation for pressure (main)-redo, no collection of terms
         pn[2:-2,2:-2]=dy**2/(2*dx**2+2*dy**2)*(p[2:-2,3:-1]+p[2:-2,1:-3])+dx**2/(2*dx**2+2*dy**2)*(p[3:-1,2:-2]+p[1:-3,2:-2]) \
@@ -207,8 +221,8 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
               +mu*((u[st+1:en+1,sin+1]-2*u[st:en,sin+1]+u[st-1:en-1,sin+1])/2/dx/dy**2-(u[st+1:en+1,sin-1]-2*u[st:en,sin-1]+u[st-1:en-1,sin-1])/2/dx/dy**2 \
                +(v[st+1:en+1,sin+1]-2*v[st+1:en+1,sin]+v[st+1:en+1,sin-1])/2/dy/dx**2-(v[st-1:en-1,sin+1]-2*v[st-1:en-1,sin]+v[st-1:en-1,sin-1])/2/dy/dx**2 \
                +(u[st:en,sin+3]-3*u[st:en,sin+2]+3*u[st:en,sin+1]-u[st:en,sin])/dx**3\
-               +(v[4:,sin]-3*v[st+2:en+2,sin]+3*v[st+1:en+1,sin]-v[st:en,sin])/dy**3))
-            st=-4
+               +(v[st+3:,sin]-3*v[st+2:en+2,sin]+3*v[st+1:en+1,sin]-v[st:en,sin])/dy**3))
+            st=-3
             en=-1
             pn[st:en,sin]=dy**2/(2*dx**2+2*dy**2)*(p[st:en,sin+1]+p[st:en,sin-1])+dx**2/(2*dx**2+2*dy**2)*(p[st+1:,sin]+p[st-1:en-1,sin]) \
             -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[st:en,sin+1]-u[st:en,sin-1])/2/dx+(v[st+1:,sin]-v[st-1:en-1,sin])/2/dy) \
@@ -222,22 +236,22 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
                +(u[st:en,sin+3]-3*u[st:en,sin+2]+3*u[st:en,sin+1]-u[st:en,sin])/dx**3\
                -(v[st-3:en-3,sin]-3*v[st-2:en-2,sin]+3*v[st-1:en-1,sin]-v[st:en,sin])/dy**3))
             # Large x
-            st=3
-            en=-2
+            st=-3
+            en=-1
             sin=-1
-            pn[st:en,sin]=dy**2/(2*dx**2+2*dy**2)*(p[st:en,sin+1]+p[st:en,sin-1])+dx**2/(2*dx**2+2*dy**2)*(p[st+1:en+1,sin]+p[st-1:en-1,sin]) \
-            -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[st:en,sin+1]-u[st:en,sin-1])/2/dx+(v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy) \
+            pn[st:en,sin]=dy**2/(2*dx**2+2*dy**2)*(p[st:en,sin+1]+p[st:en,sin-1])+dx**2/(2*dx**2+2*dy**2)*(p[st+1:,sin]+p[st-1:en-1,sin]) \
+            -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[st:en,sin+1]-u[st:en,sin-1])/2/dx+(v[st+1:,sin]-v[st-1:en-1,sin])/2/dy) \
             -u[st:en,sin]*(u[st:en,sin-1]-2*u[st:en,sin]+u[st:en,sin+1])/dx**2-((u[st:en,sin+1]-u[st:en,sin-1])/2/dx)**2\
-              -((v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy)**2-v[st:en,sin]*(v[st-1:en-1,sin]-2*v[st:en,sin]+v[st+1:en+1,sin])/dy**2 \
-              -(u[st:en,sin+1]*(v[st+1:en+1,sin+1]-v[st-1:en-1,sin+1])/4/dy/dx+v[st:en,sin+1]*(u[st+1:en+1,sin+1]-u[st-1:en-1,sin+1])/4/dy/dx) \
-              +u[st:en,sin-1]*(v[st+1:en+1,sin-1]-v[st-1:en-1,sin-1])/4/dy/dx+v[st:en,sin-1]*(u[st+1:en+1,sin-1]-u[st-1:en-1,sin-1])/4/dy/dx \
-              -2*(u[st+1:en+1,sin]-u[st-1:en-1,sin])*(v[st:en,sin+1]-v[st:en,sin-1])/4/dy/dx)\
-              +mu*((u[st+1:en+1,sin+1]-2*u[st:en,sin+1]+u[st-1:en-1,sin+1])/2/dx/dy**2-(u[st+1:en+1,sin-1]-2*u[st:en,sin-1]+u[st-1:en-1,sin-1])/2/dx/dy**2 \
-               +(v[st+1:en+1,sin+1]-2*v[st+1:en+1,sin]+v[st+1:en+1,sin-1])/2/dy/dx**2-(v[st-1:en-1,sin+1]-2*v[st-1:en-1,sin]+v[st-1:en-1,sin-1])/2/dy/dx**2 \
+              -((v[st+1:,sin]-v[st-1:en-1,sin])/2/dy)**2-v[st:en,sin]*(v[st-1:en-1,sin]-2*v[st:en,sin]+v[st+1:,sin])/dy**2 \
+              -(u[st:en,sin+1]*(v[st+1:,sin+1]-v[st-1:en-1,sin+1])/4/dy/dx+v[st:en,sin+1]*(u[st+1:,sin+1]-u[st-1:en-1,sin+1])/4/dy/dx) \
+              +u[st:en,sin-1]*(v[st+1:,sin-1]-v[st-1:en-1,sin-1])/4/dy/dx+v[st:en,sin-1]*(u[st+1:,sin-1]-u[st-1:en-1,sin-1])/4/dy/dx \
+              -2*(u[st+1:,sin]-u[st-1:en-1,sin])*(v[st:en,sin+1]-v[st:en,sin-1])/4/dy/dx)\
+              +mu*((u[st+1:,sin+1]-2*u[st:en,sin+1]+u[st-1:en-1,sin+1])/2/dx/dy**2-(u[st+1:,sin-1]-2*u[st:en,sin-1]+u[st-1:en-1,sin-1])/2/dx/dy**2 \
+               +(v[st+1:,sin+1]-2*v[st+1:,sin]+v[st+1:,sin-1])/2/dy/dx**2-(v[st-1:en-1,sin+1]-2*v[st-1:en-1,sin]+v[st-1:en-1,sin-1])/2/dy/dx**2 \
                -(u[st:en,sin-3]-3*u[st:en,sin-2]+3*u[st:en,sin-1]-u[st:en,sin])/dx**3\
                -(v[st-3:en-3,sin]-3*v[st-2:en-2,sin]+3*v[st-1:en-1,sin]-v[st:en,sin])/dy**3))
             st=1
-            en=4
+            en=-3
             pn[st:en,sin]=dy**2/(2*dx**2+2*dy**2)*(p[st:en,sin+1]+p[st:en,sin-1])+dx**2/(2*dx**2+2*dy**2)*(p[st+1:en+1,sin]+p[st-1:en-1,sin]) \
             -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[st:en,sin+1]-u[st:en,sin-1])/2/dx+(v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy) \
             -u[st:en,sin]*(u[st:en,sin-1]-2*u[st:en,sin]+u[st:en,sin+1])/dx**2-((u[st:en,sin+1]-u[st:en,sin-1])/2/dx)**2\
@@ -248,12 +262,25 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
               +mu*((u[st+1:en+1,sin+1]-2*u[st:en,sin+1]+u[st-1:en-1,sin+1])/2/dx/dy**2-(u[st+1:en+1,sin-1]-2*u[st:en,sin-1]+u[st-1:en-1,sin-1])/2/dx/dy**2 \
                +(v[st+1:en+1,sin+1]-2*v[st+1:en+1,sin]+v[st+1:en+1,sin-1])/2/dy/dx**2-(v[st-1:en-1,sin+1]-2*v[st-1:en-1,sin]+v[st-1:en-1,sin-1])/2/dy/dx**2 \
                -(u[st:en,sin-3]-3*u[st:en,sin-2]+3*u[st:en,sin-1]-u[st:en,sin])/dx**3\
-               +(v[st+3:en+3,sin]-3*v[st+2:en+2,sin]+3*v[st+1:en+1,sin]-v[st:en,sin])/dy**3))
+               +(v[st+3:,sin]-3*v[st+2:en+2,sin]+3*v[st+1:en+1,sin]-v[st:en,sin])/dy**3))
      
         if dp_zero[2]==2 or dp_zero[3]==2:
-            st=3
-            en=-2
+            st=-3
+            en=-1
             sin=0
+            pn[sin,st:en]=dy**2/(2*dx**2+2*dy**2)*(p[sin,st+1:]+p[sin,st-1:en-1])+dx**2/(2*dx**2+2*dy**2)*(p[sin+1,st:en]+p[sin-1,st:en]) \
+            -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[sin,st+1:]-u[sin,st-1:en-1])/2/dx+(v[sin+1,st:en]-v[sin-1,st:en])/2/dy) \
+            -u[sin,st:en]*(u[sin,st-1:en-1]-2*u[sin,st:en]+u[sin,st+1:])/dx**2-((u[sin,st+1:]-u[sin,st-1:en-1])/2/dx)**2\
+              -((v[sin+1,st:en]-v[sin-1,st:en])/2/dy)**2-v[sin,st:en]*(v[sin-1,st:en]-2*v[sin,st:en]+v[sin+1,st:en])/dy**2 \
+              -(u[sin,st+1:]*(v[sin+1,st+1:]-v[sin-1,st+1:])/4/dy/dx+v[sin,st+1:]*(u[sin+1,st+1:]-u[sin-1,st+1:])/4/dy/dx) \
+              +u[sin,st-1:en-1]*(v[sin+1,st-1:en-1]-v[sin-1,st-1:en-1])/4/dy/dx+v[sin,st-1:en-1]*(u[sin+1,st-1:en-1]-u[sin-1,st-1:en-1])/4/dy/dx \
+              -2*(u[sin+1,st:en]-u[sin-1,st:en])*(v[sin,st+1:]-v[sin,st-1:en-1])/4/dy/dx)\
+              +mu*((u[sin+1,st+1:]-2*u[sin,st+1:]+u[sin-1,st+1:])/2/dx/dy**2-(u[sin+1,st-1:en-1]-2*u[sin,st-1:en-1]+u[sin-1,st-1:en-1])/2/dx/dy**2 \
+               +(v[sin+1,st+1:]-2*v[sin+1,st:en]+v[sin+1,st-1:en-1])/2/dy/dx**2-(v[sin-1,st+1:]-2*v[sin-1,st:en]+v[sin-1,st-1:en-1])/2/dy/dx**2 \
+               -(u[sin,st-3:en-3]-3*u[sin,st-2:en-2]+3*u[sin,st-1:en-1]-u[sin,st:en])/dx**3\
+               +(v[sin+3,st:en]-3*v[sin+2,st:en]+3*v[sin+1,st:en]-v[sin,st:en])/dy**3))
+            st=1
+            en=-3
             pn[sin,st:en]=dy**2/(2*dx**2+2*dy**2)*(p[sin,st+1:en+1]+p[sin,st-1:en-1])+dx**2/(2*dx**2+2*dy**2)*(p[sin+1,st:en]+p[sin-1,st:en]) \
             -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[sin,st+1:en+1]-u[sin,st-1:en-1])/2/dx+(v[sin+1,st:en]-v[sin-1,st:en])/2/dy) \
             -u[sin,st:en]*(u[sin,st-1:en-1]-2*u[sin,st:en]+u[sin,st+1:en+1])/dx**2-((u[sin,st+1:en+1]-u[sin,st-1:en-1])/2/dx)**2\
@@ -263,59 +290,51 @@ def ResolvePress(p, u, v, dxyt, prop, conv, dp_zero):
               -2*(u[sin+1,st:en]-u[sin-1,st:en])*(v[sin,st+1:en+1]-v[sin,st-1:en-1])/4/dy/dx)\
               +mu*((u[sin+1,st+1:en+1]-2*u[sin,st+1:en+1]+u[sin-1,st+1:en+1])/2/dx/dy**2-(u[sin+1,st-1:en-1]-2*u[sin,st-1:en-1]+u[sin-1,st-1:en-1])/2/dx/dy**2 \
                +(v[sin+1,st+1:en+1]-2*v[sin+1,st:en]+v[sin+1,st-1:en-1])/2/dy/dx**2-(v[sin-1,st+1:en+1]-2*v[sin-1,st:en]+v[sin-1,st-1:en-1])/2/dy/dx**2 \
-               -(u[sin,st-3:en-3]-3*u[sin,st-2:en-2]+3*u[sin,st-1:en-1]-u[sin,st:en])/dx**3\
+               +(u[sin,st+3:]-3*u[sin,st+2:en+2]+3*u[sin,st+1:en+1]-u[sin,st:en])/dx**3\
                +(v[sin+3,st:en]-3*v[sin+2,st:en]+3*v[sin+1,st:en]-v[sin,st:en])/dy**3))
-            st=2
-            en=3
-            pn[st:en,sin]=dy**2/(2*dx**2+2*dy**2)*(p[st:en,sin+1]+p[st:en,sin-1])+dx**2/(2*dx**2+2*dy**2)*(p[st+1:en+1,sin]+p[st-1:en-1,sin]) \
-            -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[st:en,sin+1]-u[st:en,sin-1])/2/dx+(v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy) \
-            -u[st:en,sin]*(u[st:en,sin-1]-2*u[st:en,sin]+u[st:en,sin+1])/dx**2-((u[st:en,sin+1]-u[st:en,sin-1])/2/dx)**2\
-              -((v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy)**2-v[st:en,sin]*(v[st-1:en-1,sin]-2*v[st:en,sin]+v[st+1:en+1,sin])/dy**2 \
-              -(u[st:en,sin+1]*(v[st+1:en+1,sin+1]-v[st-1:en-1,sin+1])/4/dy/dx+v[st:en,sin+1]*(u[st+1:en+1,sin+1]-u[st-1:en-1,sin+1])/4/dy/dx) \
-              +u[st:en,sin-1]*(v[st+1:en+1,sin-1]-v[st-1:en-1,sin-1])/4/dy/dx+v[st:en,sin-1]*(u[st+1:en+1,sin-1]-u[st-1:en-1,sin-1])/4/dy/dx \
-              -2*(u[st+1:en+1,sin]-u[st-1:en-1,sin])*(v[st:en,sin+1]-v[st:en,sin-1])/4/dy/dx)\
-              +mu*((u[st+1:en+1,sin+1]-2*u[st:en,sin+1]+u[st-1:en-1,sin+1])/2/dx/dy**2-(u[st+1:en+1,sin-1]-2*u[st:en,sin-1]+u[st-1:en-1,sin-1])/2/dx/dy**2 \
-               +(v[st+1:en+1,sin+1]-2*v[st+1:en+1,sin]+v[st+1:en+1,sin-1])/2/dy/dx**2-(v[st-1:en-1,sin+1]-2*v[st-1:en-1,sin]+v[st-1:en-1,sin-1])/2/dy/dx**2 \
-               +(u[st:en,sin+3]-3*u[st:en,sin+2]+3*u[st:en,sin+1]-u[st:en,sin])/dx**3\
-               +(v[st+3:en+3,sin]-3*v[st+2:en+2,sin]+3*v[st+1:en+1,sin]-v[st:en,sin])/dy**3))
             # Large y
-            st=3
-            en=-2
+            st=-3
+            en=-1
             sin=-1
-            pn[st:en,sin]=dy**2/(2*dx**2+2*dy**2)*(p[st:en,sin+1]+p[st:en,sin-1])+dx**2/(2*dx**2+2*dy**2)*(p[st+1:en+1,sin]+p[st-1:en-1,sin]) \
-            -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[st:en,sin+1]-u[st:en,sin-1])/2/dx+(v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy) \
-            -u[st:en,sin]*(u[st:en,sin-1]-2*u[st:en,sin]+u[st:en,sin+1])/dx**2-((u[st:en,sin+1]-u[st:en,sin-1])/2/dx)**2\
-              -((v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy)**2-v[st:en,sin]*(v[st-1:en-1,sin]-2*v[st:en,sin]+v[st+1:en+1,sin])/dy**2 \
-              -(u[st:en,sin+1]*(v[st+1:en+1,sin+1]-v[st-1:en-1,sin+1])/4/dy/dx+v[st:en,sin+1]*(u[st+1:en+1,sin+1]-u[st-1:en-1,sin+1])/4/dy/dx) \
-              +u[st:en,sin-1]*(v[st+1:en+1,sin-1]-v[st-1:en-1,sin-1])/4/dy/dx+v[st:en,sin-1]*(u[st+1:en+1,sin-1]-u[st-1:en-1,sin-1])/4/dy/dx \
-              -2*(u[st+1:en+1,sin]-u[st-1:en-1,sin])*(v[st:en,sin+1]-v[st:en,sin-1])/4/dy/dx)\
-              +mu*((u[st+1:en+1,sin+1]-2*u[st:en,sin+1]+u[st-1:en-1,sin+1])/2/dx/dy**2-(u[st+1:en+1,sin-1]-2*u[st:en,sin-1]+u[st-1:en-1,sin-1])/2/dx/dy**2 \
-               +(v[st+1:en+1,sin+1]-2*v[st+1:en+1,sin]+v[st+1:en+1,sin-1])/2/dy/dx**2-(v[st-1:en-1,sin+1]-2*v[st-1:en-1,sin]+v[st-1:en-1,sin-1])/2/dy/dx**2 \
-               -(u[st:en,sin-3]-3*u[st:en,sin-2]+3*u[st:en,sin-1]-u[st:en,sin])/dx**3\
-               -(v[st-3:en-3,sin]-3*v[st-2:en-2,sin]+3*v[st-1:en-1,sin]-v[st:en,sin])/dy**3))
+            pn[sin,st:en]=dy**2/(2*dx**2+2*dy**2)*(p[sin,st+1:]+p[sin,st-1:en-1])+dx**2/(2*dx**2+2*dy**2)*(p[sin+1,st:en]+p[sin-1,st:en]) \
+            -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[sin,st+1:]-u[sin,st-1:en-1])/2/dx+(v[sin+1,st:en]-v[sin-1,st:en])/2/dy) \
+            -u[sin,st:en]*(u[sin,st-1:en-1]-2*u[sin,st:en]+u[sin,st+1:])/dx**2-((u[sin,st+1:]-u[sin,st-1:en-1])/2/dx)**2\
+              -((v[sin+1,st:en]-v[sin-1,st:en])/2/dy)**2-v[sin,st:en]*(v[sin-1,st:en]-2*v[sin,st:en]+v[sin+1,st:en])/dy**2 \
+              -(u[sin,st+1:]*(v[sin+1,st+1:]-v[sin-1,st+1:])/4/dy/dx+v[sin,st+1:]*(u[sin+1,st+1:]-u[sin-1,st+1:])/4/dy/dx) \
+              +u[sin,st-1:en-1]*(v[sin+1,st-1:en-1]-v[sin-1,st-1:en-1])/4/dy/dx+v[sin,st-1:en-1]*(u[sin+1,st-1:en-1]-u[sin-1,st-1:en-1])/4/dy/dx \
+              -2*(u[sin+1,st:en]-u[sin-1,st:en])*(v[sin,st+1:]-v[sin,st-1:en-1])/4/dy/dx)\
+              +mu*((u[sin+1,st+1:]-2*u[sin,st+1:]+u[sin-1,st+1:])/2/dx/dy**2-(u[sin+1,st-1:en-1]-2*u[sin,st-1:en-1]+u[sin-1,st-1:en-1])/2/dx/dy**2 \
+               +(v[sin+1,st+1:]-2*v[sin+1,st:en]+v[sin+1,st-1:en-1])/2/dy/dx**2-(v[sin-1,st+1:]-2*v[sin-1,st:en]+v[sin-1,st-1:en-1])/2/dy/dx**2 \
+               -(u[sin,st-3:en-3]-3*u[sin,st-2:en-2]+3*u[sin,st-1:en-1]-u[sin,st:en])/dx**3\
+               -(v[sin-3,st:en]-3*v[sin-2,st:en]+3*v[sin-1,st:en]-v[sin,st:en])/dy**3))
             st=1
-            en=4
-            pn[st:en,sin]=dy**2/(2*dx**2+2*dy**2)*(p[st:en,sin+1]+p[st:en,sin-1])+dx**2/(2*dx**2+2*dy**2)*(p[st+1:en+1,sin]+p[st-1:en-1,sin]) \
-            -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[st:en,sin+1]-u[st:en,sin-1])/2/dx+(v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy) \
-            -u[st:en,sin]*(u[st:en,sin-1]-2*u[st:en,sin]+u[st:en,sin+1])/dx**2-((u[st:en,sin+1]-u[st:en,sin-1])/2/dx)**2\
-              -((v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy)**2-v[st:en,sin]*(v[st-1:en-1,sin]-2*v[st:en,sin]+v[st+1:en+1,sin])/dy**2 \
-              -(u[st:en,sin+1]*(v[st+1:en+1,sin+1]-v[st-1:en-1,sin+1])/4/dy/dx+v[st:en,sin+1]*(u[st+1:en+1,sin+1]-u[st-1:en-1,sin+1])/4/dy/dx) \
-              +u[st:en,sin-1]*(v[st+1:en+1,sin-1]-v[st-1:en-1,sin-1])/4/dy/dx+v[st:en,sin-1]*(u[st+1:en+1,sin-1]-u[st-1:en-1,sin-1])/4/dy/dx \
-              -2*(u[st+1:en+1,sin]-u[st-1:en-1,sin])*(v[st:en,sin+1]-v[st:en,sin-1])/4/dy/dx)\
-              +mu*((u[st+1:en+1,sin+1]-2*u[st:en,sin+1]+u[st-1:en-1,sin+1])/2/dx/dy**2-(u[st+1:en+1,sin-1]-2*u[st:en,sin-1]+u[st-1:en-1,sin-1])/2/dx/dy**2 \
-               +(v[st+1:en+1,sin+1]-2*v[st+1:en+1,sin]+v[st+1:en+1,sin-1])/2/dy/dx**2-(v[st-1:en-1,sin+1]-2*v[st-1:en-1,sin]+v[st-1:en-1,sin-1])/2/dy/dx**2 \
-               -(u[st:en,sin-3]-3*u[st:en,sin-2]+3*u[st:en,sin-1]-u[st:en,sin])/dx**3\
-               +(v[st+3:en+3,sin]-3*v[st+2:en+2,sin]+3*v[st+1:en+1,sin]-v[st:en,sin])/dy**3))
+            en=-3
+            pn[sin,st:en]=dy**2/(2*dx**2+2*dy**2)*(p[sin,st+1:]+p[sin,st-1:en-1])+dx**2/(2*dx**2+2*dy**2)*(p[sin+1,st:en]+p[sin-1,st:en]) \
+            -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[sin,st+1:]-u[sin,st-1:en-1])/2/dx+(v[sin+1,st:en]-v[sin-1,st:en])/2/dy) \
+            -u[sin,st:en]*(u[sin,st-1:en-1]-2*u[sin,st:en]+u[sin,st+1:])/dx**2-((u[sin,st+1:]-u[sin,st-1:en-1])/2/dx)**2\
+              -((v[sin+1,st:en]-v[sin-1,st:en])/2/dy)**2-v[sin,st:en]*(v[sin-1,st:en]-2*v[sin,st:en]+v[sin+1,st:en])/dy**2 \
+              -(u[sin,st+1:]*(v[sin+1,st+1:]-v[sin-1,st+1:])/4/dy/dx+v[sin,st+1:]*(u[sin+1,st+1:]-u[sin-1,st+1:])/4/dy/dx) \
+              +u[sin,st-1:en-1]*(v[sin+1,st-1:en-1]-v[sin-1,st-1:en-1])/4/dy/dx+v[sin,st-1:en-1]*(u[sin+1,st-1:en-1]-u[sin-1,st-1:en-1])/4/dy/dx \
+              -2*(u[sin+1,st:en]-u[sin-1,st:en])*(v[sin,st+1:]-v[sin,st-1:en-1])/4/dy/dx)\
+              +mu*((u[sin+1,st+1:]-2*u[sin,st+1:]+u[sin-1,st+1:])/2/dx/dy**2-(u[sin+1,st-1:en-1]-2*u[sin,st-1:en-1]+u[sin-1,st-1:en-1])/2/dx/dy**2 \
+               +(v[sin+1,st+1:]-2*v[sin+1,st:en]+v[sin+1,st-1:en-1])/2/dy/dx**2-(v[sin-1,st+1:]-2*v[sin-1,st:en]+v[sin-1,st-1:en-1])/2/dy/dx**2 \
+               +(u[sin,st+3:]-3*u[sin,st+2:en+2]+3*u[sin,st+1:en+1]-u[sin,st:en])/dx**3\
+               -(v[sin-3,st:en]-3*v[sin-2,st:en]+3*v[sin-1,st:en]-v[sin,st:en])/dy**3))
 
           # Convergence check
         diff=numpy.sum(numpy.abs(p[:]-pn[:]))/numpy.sum(numpy.abs(p[:]))
-#        print(diff)
+        if YesRes:
+            print(diff)
         p=pn.copy()
         count=count+1
     if count==1000:
         print 'Convergence problems resolving the pressure distribution'
-        print 'Residuals: %.4f'%diff
+        print 'Residuals: %.6f'%diff
         error=1
+    # Pressure clipping
+    if numpy.amax(p[:])<10**(-5):
+        p[:,:]=0
+    
     return p,error
 
 
@@ -347,6 +366,11 @@ nu=mu/rho
 
 # Convergence
 conv=0.01 # convergence criteria
+diff_SS=10 # Difference for momentum checking
+count=0 # Counter for SS
+pl=3 # Plot every "pl" number of points on quiver plot
+YesPrint=1  # Bool-print time step data
+YesRes=0 # Bool-print residuals data at each time step
 
 # Boundary conditions
 u[:,0]=0
@@ -363,13 +387,19 @@ v[:,0]=0
 pres_BCs=(2,2,1,1) # Boundaries with 0 pressure gradient or periodic BCs
 
 #-------------------------------- Solve
-
+#while (diff_SS>conv) and (count<1000): # Use for steady state solving
 for i in range(Nt):
     
-    print 'Time step %i \n'%i
-#    print 'Pressure residuals:'
+#    if 1.0*i/100==1:
+#        dt=dt*10
+#        print'Time step changed to %.2f'%dt
     
-    p,error=ResolvePress(p, u, v, (dx, dy, dt), (rho, mu), conv, pres_BCs)
+    if YesPrint:
+        print 'Time step %i \n'%i
+    if YesRes:
+        print 'Pressure residuals:'
+    
+    p,error=ResolvePress(p, u, v, (dx, dy, dt), (rho, mu), conv, YesRes, pres_BCs)
     if error==1:
         print 'Run aborted at time step %i'%i
         break
@@ -446,13 +476,16 @@ for i in range(Nt):
 #      +vn[-1,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[0,1:-1]) \
 #      +vn[0,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
     
+    diff_SS=numpy.sum(numpy.abs(u[:]-un[:]))/numpy.sum(numpy.abs(u[:]))
+    count+=1
+    
 fig = pyplot.figure(figsize=(11,7), dpi=100)
 # plotting the pressure field as a contour
-#pyplot.contourf(X, Y, p, alpha=0.5, cmap=cm.viridis)  
-#pyplot.colorbar()
+pyplot.contourf(X, Y, p, alpha=0.5, cmap=cm.viridis)  
+pyplot.colorbar()
 # plotting the pressure field outlines
-#pyplot.contour(X, Y, p, cmap=cm.viridis)  
+pyplot.contour(X, Y, p, cmap=cm.viridis)  
 # plotting velocity field
-pyplot.quiver(X[::2, ::2], Y[::2, ::2], u[::2, ::2], v[::2, ::2]) 
+pyplot.quiver(X[::pl, ::pl], Y[::pl, ::pl], u[::pl, ::pl], v[::pl, ::pl]) 
 pyplot.xlabel('X')
 pyplot.ylabel('Y');
