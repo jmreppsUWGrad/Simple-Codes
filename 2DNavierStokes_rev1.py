@@ -12,6 +12,7 @@ FEATURES:
     -able to compute periodic and 0 gradient BCs for pressure
     -able to compute periodic BC for velocities
     -Constant pressure gradient for Poiseuille flow possible (Cannot vary spatially)
+    -pressure clipping
 
 Poisson solver:
     -2nd order Central difference schemes for bulk of domain
@@ -172,18 +173,6 @@ def ResolvePress(p, u, v, dxyt, prop, conv, YesRes, dp_zero):
            +(u[sin,st+3:en+3]-3*u[sin,st+2:en+2]+3*u[sin,st+1:en+1]-u[sin,st:en])/dx**3\
            +(v[sin+3,st:en]-3*v[sin+2,st:en]+3*v[sin+1,st:en]-v[sin,st:en])/dy**3))
     
-#        pn[st:en,sin]=dy**2/(2*dx**2+2*dy**2)*(p[st:en,sin+1]+p[st:en,sin-1])+dx**2/(2*dx**2+2*dy**2)*(p[st+1:en+1,sin]+p[st-1:en-1,sin]) \
-#        -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[st:en,sin+1]-u[st:en,sin-1])/2/dx+(v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy) \
-#        -u[st:en,sin]*(u[st:en,sin-1]-2*u[st:en,sin]+u[st:en,sin+1])/dx**2-((u[st:en,sin+1]-u[st:en,sin-1])/2/dx)**2\
-#          -((v[st+1:en+1,sin]-v[st-1:en-1,sin])/2/dy)**2-v[st:en,sin]*(v[st-1:en-1,sin]-2*v[st:en,sin]+v[st+1:en+1,sin])/dy**2 \
-#          -(u[st:en,sin+1]*(v[st+1:en+1,sin+1]-v[st-1:en-1,sin+1])/4/dy/dx+v[st:en,sin+1]*(u[st+1:en+1,sin+1]-u[st-1:en-1,sin+1])/4/dy/dx) \
-#          +u[st:en,sin-1]*(v[st+1:en+1,sin-1]-v[st-1:en-1,sin-1])/4/dy/dx+v[st:en,sin-1]*(u[st+1:en+1,sin-1]-u[st-1:en-1,sin-1])/4/dy/dx \
-#          -2*(u[st+1:en+1,sin]-u[st-1:en-1,sin])*(v[st:en,sin+1]-v[st:en,sin-1])/4/dy/dx)\
-#          +mu*((u[st+1:en+1,sin+1]-2*u[st:en,sin+1]+u[st-1:en-1,sin+1])/2/dx/dy**2-(u[st+1:en+1,sin-1]-2*u[st:en,sin-1]+u[st-1:en-1,sin-1])/2/dx/dy**2 \
-#       +(v[st+1:en+1,sin+1]-2*v[st+1:en+1,sin]+v[st+1:en+1,sin-1])/2/dy/dx**2-(v[st-1:en-1,sin+1]-2*v[st-1:en-1,sin]+v[st-1:en-1,sin-1])/2/dy/dx**2 \
-#       +(u[st:en,sin+3]-3*u[st:en,sin+2]+3*u[st:en,sin+1]-u[st:en,sin])/dx**3\
-#       +(v[st+3:en+3,sin]-3*v[st+2:en+2,sin]+3*v[st+1:en+1,sin]-v[st:en,sin])/dy**3))
-        
         # Poisson equation for pressure (main)-redo, no collection of terms
         pn[2:-2,2:-2]=dy**2/(2*dx**2+2*dy**2)*(p[2:-2,3:-1]+p[2:-2,1:-3])+dx**2/(2*dx**2+2*dy**2)*(p[3:-1,2:-2]+p[1:-3,2:-2]) \
         -dx**2*dy**2/(2*dx**2+2*dy**2)*(rho*(1/dt*((u[2:-2,3:-1]-u[2:-2,1:-3])/2/dx+(v[3:-1,2:-2]-v[1:-3,2:-2])/2/dy) \
@@ -337,25 +326,133 @@ def ResolvePress(p, u, v, dxyt, prop, conv, YesRes, dp_zero):
     
     return p,error
 
+def SolveVel(Nt,u,v,p,sources,dxyt,mat_prop,conv,BC_vel_press,print_out):
+    rho,mu=mat_prop
+    dx,dy,dt=dxyt
+    BC_vel,BC_press=BC_vel_press
+    YesPrint,YesRes=print_out
+    dpx,dpy,gx,gy=sources
+    count=1
+    diff_SSu=10
+    diff_SSv=10
+    error2=0
+    un=numpy.empty_like(u)
+    vn=numpy.empty_like(v)
+#    while (diff_SS>conv) and (count<1000): # Use for steady state solving    
+    for i in range(Nt):
+    
+#        if 1.0*i/100==1:
+#            dt=dt*10
+#            print'Time step changed to %.2f'%dt
+        
+        if YesPrint:
+            print 'Time step %i \n'%i
+        if YesRes:
+            print 'Pressure residuals:'
+        
+        p,error=ResolvePress(p, u, v, (dx, dy, dt), (rho, mu), conv, YesRes, pres_BCs)
+        if error==1:
+            print 'Run aborted at time step %i'%i
+            error2=1
+            break
+        # Solve momentum equations (explicit, first order for time)
+        un=u.copy()
+        vn=v.copy()
+        u[1:-1,1:-1]=dt/(2*rho*dx)*(p[1:-1,:-2]-p[1:-1,2:]) \
+          +un[1:-1,2:]*(dt*nu/dx**2-dt/2/dx*un[1:-1,1:-1]) \
+          +un[1:-1,:-2]*(dt*nu/dx**2+dt/2/dx*un[1:-1,1:-1]) \
+          +un[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,1:-1]) \
+          +un[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,1:-1]) \
+          +un[1:-1,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
+        
+        v[1:-1,1:-1]=dt/(2*rho*dy)*(p[:-2,1:-1]-p[2:,1:-1]) \
+          +vn[1:-1,2:]*(dt*nu/dx**2-dt/2/dx*un[1:-1,1:-1]) \
+          +vn[1:-1,:-2]*(dt*nu/dx**2+dt/2/dx*vn[1:-1,1:-1]) \
+          +vn[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,1:-1]) \
+          +vn[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,1:-1]) \
+          +vn[1:-1,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
+        
+        # Periodic BCs (across x)
+        if (BC_vel[0]==2) or (BC_vel[1]==2):
+            u[1:-1,-1]=dt/(2*rho*dx)*(p[1:-1,-2]-p[1:-1,0]) \
+              +un[1:-1,0]*(dt*nu/dx**2-dt/2/dx*un[1:-1,-1]) \
+              +un[1:-1,-2]*(dt*nu/dx**2+dt/2/dx*un[1:-1,-1]) \
+              +un[2:,-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,-1]) \
+              +un[:-2,-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,-1]) \
+              +un[1:-1,-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
+            
+            u[1:-1,0]=dt/(2*rho*dx)*(p[1:-1,-1]-p[1:-1,1]) \
+              +un[1:-1,1]*(dt*nu/dx**2-dt/2/dx*un[1:-1,0]) \
+              +un[1:-1,-1]*(dt*nu/dx**2+dt/2/dx*un[1:-1,0]) \
+              +un[2:,0]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,0]) \
+              +un[:-2,0]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,0]) \
+              +un[1:-1,0]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
+            
+            v[1:-1,-1]=dt/(2*rho*dy)*(p[:-2,-1]-p[2:,-1]) \
+              +vn[1:-1,0]*(dt*nu/dx**2-dt/2/dx*un[1:-1,-1]) \
+              +vn[1:-1,-2]*(dt*nu/dx**2+dt/2/dx*vn[1:-1,-1]) \
+              +vn[2:,-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,-1]) \
+              +vn[:-2,-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,-1]) \
+              +vn[1:-1,-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
+            
+            v[1:-1,0]=dt/(2*rho*dy)*(p[:-2,0]-p[2:,0]) \
+              +vn[1:-1,1]*(dt*nu/dx**2-dt/2/dx*un[1:-1,0]) \
+              +vn[1:-1,-1]*(dt*nu/dx**2+dt/2/dx*vn[1:-1,0]) \
+              +vn[2:,0]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,0]) \
+              +vn[:-2,0]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,0]) \
+              +vn[1:-1,0]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
+        
+        # Periodic BCs (across y)
+        if (BC_vel[2]==2) or (BC_vel[3]==2):
+            u[-1,1:-1]=dt/(2*rho*dx)*(p[-1,:-2]-p[-1,2:]) \
+              +un[-1,2:]*(dt*nu/dx**2-dt/2/dx*un[-1,1:-1]) \
+              +un[-1,:-2]*(dt*nu/dx**2+dt/2/dx*un[-1,1:-1]) \
+              +un[0,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[-1,1:-1]) \
+              +un[-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[-1,1:-1]) \
+              +un[-1,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
+            u[0,1:-1]=dt/(2*rho*dx)*(p[0,:-2]-p[0,2:]) \
+              +un[0,2:]*(dt*nu/dx**2-dt/2/dx*un[0,1:-1]) \
+              +un[0,:-2]*(dt*nu/dx**2+dt/2/dx*un[0,1:-1]) \
+              +un[1,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[0,1:-1]) \
+              +un[-1,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[0,1:-1]) \
+              +un[0,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
+            
+            v[-1,1:-1]=dt/(2*rho*dy)*(p[-2,1:-1]-p[0,1:-1]) \
+              +vn[-1,2:]*(dt*nu/dx**2-dt/2/dx*un[-1,1:-1]) \
+              +vn[-1,:-2]*(dt*nu/dx**2+dt/2/dx*vn[-1,1:-1]) \
+              +vn[0,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[-1,1:-1]) \
+              +vn[-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[-1,1:-1]) \
+              +vn[-1,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
+            v[0,1:-1]=dt/(2*rho*dy)*(p[-1,1:-1]-p[1,1:-1]) \
+              +vn[0,2:]*(dt*nu/dx**2-dt/2/dx*un[0,1:-1]) \
+              +vn[0,:-2]*(dt*nu/dx**2+dt/2/dx*vn[0,1:-1]) \
+              +vn[1,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[0,1:-1]) \
+              +vn[-1,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[0,1:-1]) \
+              +vn[0,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
+        
+        diff_SSu=numpy.sum(numpy.abs(u[:]-un[:]))/numpy.sum(numpy.abs(u[:]))
+        diff_SSv=numpy.sum(numpy.abs(v[:]-vn[:]))/numpy.sum(numpy.abs(v[:]))
+        count+=1
+        
+    return u,v,p,error2
+
 
 #-------------------------------- Setup
 L=2.0 # Length (x coordinate max)
 W=2.0 # Width
 gx=0 # Gravity component in x (if neglected, use 0)
 gy=0 # Gravity component in y (if neglected, use 0)
-dpx=-1 # Pressure gradient in x
+dpx=0 # Pressure gradient in x
 dpy=0 # Pressure gradient in y
 Nx=41 # Number of nodes in x
 Ny=41 # Number of nodes in y
 rho=1.0 # Density of fluid (kg/m^3)
 mu=0.1*rho # Dynamic viscosity of fluid (Pa s)
-dt=0.01 # Time step size (s)
-Nt=10 # Number of time steps
+dt=0.001 # Time step size (s)
+Nt=100 # Number of time steps
 
 u=numpy.zeros((Ny, Nx))
-un=numpy.empty_like(u)
 v=numpy.zeros((Ny, Nx))
-vn=numpy.empty_like(v)
 p=numpy.zeros((Ny, Nx))
 x=numpy.linspace(0, L, Nx)
 y=numpy.linspace(0, W, Ny)
@@ -365,10 +462,7 @@ dy=W/(Ny-1)
 nu=mu/rho
 
 # Convergence
-conv=0.01 # convergence criteria
-diff_SS=10 # Difference for momentum checking
-count=0 # Counter for SS
-pl=3 # Plot every "pl" number of points on quiver plot
+conv=0.01 # convergence criteria for pressure and velocity
 YesPrint=1  # Bool-print time step data
 YesRes=0 # Bool-print residuals data at each time step
 
@@ -376,7 +470,7 @@ YesRes=0 # Bool-print residuals data at each time step
 u[:,0]=0
 u[:,-1]=0
 #u[0,:]=0
-#u[-1,:]=1
+u[-1,:]=1
 v[:,-1]=0
 v[:,0]=0
 #v[0,:]=0
@@ -384,101 +478,21 @@ v[:,0]=0
 
 #p[-1,:]=0
 #p[-4,:]=1
-pres_BCs=(2,2,1,1) # Boundaries with 0 pressure gradient or periodic BCs
+vel_BCs=(0,0,0,0) # BC types for velocities
+pres_BCs=(1,1,1,0) # BC types for pressure
+
+dxyt=(dx,dy,dt)
+mat_prop=(rho,mu)
+BCs=(vel_BCs,pres_BCs)
+msgs=(YesPrint,YesRes)
+src=(dpx,dpy,gx,gy)
 
 #-------------------------------- Solve
-#while (diff_SS>conv) and (count<1000): # Use for steady state solving
-for i in range(Nt):
-    
-#    if 1.0*i/100==1:
-#        dt=dt*10
-#        print'Time step changed to %.2f'%dt
-    
-    if YesPrint:
-        print 'Time step %i \n'%i
-    if YesRes:
-        print 'Pressure residuals:'
-    
-    p,error=ResolvePress(p, u, v, (dx, dy, dt), (rho, mu), conv, YesRes, pres_BCs)
-    if error==1:
-        print 'Run aborted at time step %i'%i
-        break
-    # Solve momentum equations (explicit, first order for time)
-    un=u.copy()
-    vn=v.copy()
-    u[1:-1,1:-1]=dt/(2*rho*dx)*(p[1:-1,:-2]-p[1:-1,2:]) \
-      +un[1:-1,2:]*(dt*nu/dx**2-dt/2/dx*un[1:-1,1:-1]) \
-      +un[1:-1,:-2]*(dt*nu/dx**2+dt/2/dx*un[1:-1,1:-1]) \
-      +un[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,1:-1]) \
-      +un[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,1:-1]) \
-      +un[1:-1,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
-    
-    v[1:-1,1:-1]=dt/(2*rho*dy)*(p[:-2,1:-1]-p[2:,1:-1]) \
-      +vn[1:-1,2:]*(dt*nu/dx**2-dt/2/dx*un[1:-1,1:-1]) \
-      +vn[1:-1,:-2]*(dt*nu/dx**2+dt/2/dx*vn[1:-1,1:-1]) \
-      +vn[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,1:-1]) \
-      +vn[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,1:-1]) \
-      +vn[1:-1,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
-    
-    # Periodic BCs (across x)
-    u[1:-1,-1]=dt/(2*rho*dx)*(p[1:-1,-2]-p[1:-1,0]) \
-      +un[1:-1,0]*(dt*nu/dx**2-dt/2/dx*un[1:-1,-1]) \
-      +un[1:-1,-2]*(dt*nu/dx**2+dt/2/dx*un[1:-1,-1]) \
-      +un[2:,-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,-1]) \
-      +un[:-2,-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,-1]) \
-      +un[1:-1,-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
-    
-    u[1:-1,0]=dt/(2*rho*dx)*(p[1:-1,-1]-p[1:-1,1]) \
-      +un[1:-1,1]*(dt*nu/dx**2-dt/2/dx*un[1:-1,0]) \
-      +un[1:-1,-1]*(dt*nu/dx**2+dt/2/dx*un[1:-1,0]) \
-      +un[2:,0]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,0]) \
-      +un[:-2,0]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,0]) \
-      +un[1:-1,0]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
-    
-    v[1:-1,-1]=dt/(2*rho*dy)*(p[:-2,-1]-p[2:,-1]) \
-      +vn[1:-1,0]*(dt*nu/dx**2-dt/2/dx*un[1:-1,-1]) \
-      +vn[1:-1,-2]*(dt*nu/dx**2+dt/2/dx*vn[1:-1,-1]) \
-      +vn[2:,-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,-1]) \
-      +vn[:-2,-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,-1]) \
-      +vn[1:-1,-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
-    
-    v[1:-1,0]=dt/(2*rho*dy)*(p[:-2,0]-p[2:,0]) \
-      +vn[1:-1,1]*(dt*nu/dx**2-dt/2/dx*un[1:-1,0]) \
-      +vn[1:-1,-1]*(dt*nu/dx**2+dt/2/dx*vn[1:-1,0]) \
-      +vn[2:,0]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,0]) \
-      +vn[:-2,0]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,0]) \
-      +vn[1:-1,0]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
-    
-    # Periodic BCs (across y)
-#    u[-1,1:-1]=dt/(2*rho*dx)*(p[-1,:-2]-p[-1,2:]) \
-#      +un[-1,2:]*(dt*nu/dx**2-dt/2/dx*un[-1,1:-1]) \
-#      +un[-1,:-2]*(dt*nu/dx**2+dt/2/dx*un[-1,1:-1]) \
-#      +un[0,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[-1,1:-1]) \
-#      +un[-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[-1,1:-1]) \
-#      +un[-1,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
-#    u[0,1:-1]=dt/(2*rho*dx)*(p[0,:-2]-p[0,2:]) \
-#      +un[0,2:]*(dt*nu/dx**2-dt/2/dx*un[0,1:-1]) \
-#      +un[0,:-2]*(dt*nu/dx**2+dt/2/dx*un[0,1:-1]) \
-#      +un[1,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[0,1:-1]) \
-#      +un[-1,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[0,1:-1]) \
-#      +un[0,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
-#    
-#    v[-1,1:-1]=dt/(2*rho*dy)*(p[-2,1:-1]-p[0,1:-1]) \
-#      +vn[-1,2:]*(dt*nu/dx**2-dt/2/dx*un[-1,1:-1]) \
-#      +vn[-1,:-2]*(dt*nu/dx**2+dt/2/dx*vn[-1,1:-1]) \
-#      +vn[0,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[-1,1:-1]) \
-#      +vn[-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[-1,1:-1]) \
-#      +vn[-1,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
-#    v[0,1:-1]=dt/(2*rho*dy)*(p[-1,1:-1]-p[1,1:-1]) \
-#      +vn[0,2:]*(dt*nu/dx**2-dt/2/dx*un[0,1:-1]) \
-#      +vn[0,:-2]*(dt*nu/dx**2+dt/2/dx*vn[0,1:-1]) \
-#      +vn[1,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[0,1:-1]) \
-#      +vn[-1,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[0,1:-1]) \
-#      +vn[0,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
-    
-    diff_SS=numpy.sum(numpy.abs(u[:]-un[:]))/numpy.sum(numpy.abs(u[:]))
-    count+=1
-    
+
+u,v,p,error=SolveVel(Nt,u,v,p,src,dxyt,mat_prop,conv,BCs,msgs)
+
+
+pl=2 # Plot every "pl" number of points on quiver plot
 fig = pyplot.figure(figsize=(11,7), dpi=100)
 # plotting the pressure field as a contour
 pyplot.contourf(X, Y, p, alpha=0.5, cmap=cm.viridis)  
