@@ -23,11 +23,41 @@ import numpy
 
 class OneDimLine:
     def __init__(self, length, num_nodes):
-        self.L=length
+        self.L=1.0*length
         self.Nx=num_nodes
-        self.bias={'OneWayUp': 0, 'OneWayDown': 0, 'TwoWay': 0}
+        self.x=numpy.zeros(self.Nx)
+        self.dx=numpy.zeros(self.Nx-1)
+        self.bias_elem={'OneWayUp': 0, 'OneWayDown': 0, 'TwoWayEnd': 0, 'TwoWayMid': 0}
         # Setup variable arrays
         self.T=numpy.zeros(self.Nx)
+        self.mat_prop={'k': 5, 'Cp': 800, 'rho': 1000}
+        
+    def mesh(self):
+        if self.bias_elem['OneWayUp']!=0:
+            smallest=self.bias_elem['OneWayUp']
+            self.dx=numpy.linspace(2*self.L/(self.Nx-1)-smallest,smallest,self.Nx-1)
+            print 'One way biasing: smallest element at x=%2f'%self.L
+        elif self.bias_elem['OneWayDown']!=0:
+            smallest=self.bias_elem['OneWayDown']
+            self.dx=numpy.linspace(smallest,2*self.L/(self.Nx-1)-smallest,self.Nx-1)
+            print 'One way biasing: smallest element at x=0'
+        elif self.bias_elem['TwoWayEnd']!=0:
+            smallest=self.bias_elem['TwoWayEnd']
+            self.dx[:int(self.Nx/2)]=numpy.linspace(smallest,self.L/(self.Nx-1)-smallest,(self.Nx-1)/2)
+            self.dx[int(self.Nx/2):]=numpy.linspace(self.L/(self.Nx-1)-smallest,smallest,(self.Nx-1)/2)
+            print 'Two way biasing: smallest elements at x=0 and %2f'%self.L
+        elif self.bias_elem['TwoWayMid']!=0:
+            smallest=self.bias_elem['TwoWayMid']
+            self.dx[:int(self.Nx/2)]=numpy.linspace(self.L/(self.Nx-1)-smallest,smallest,(self.Nx-1)/2)
+            self.dx[int(self.Nx/2):]=numpy.linspace(smallest,self.L/(self.Nx-1)-smallest,(self.Nx-1)/2)
+            print 'Two way biasing: smallest elements around x=%2f'%(self.L/2)
+        else:
+            self.dx=numpy.linspace(0,self.L,self.Nx)
+            print 'No biasing schemes specified'
+        
+        for i in range(self.Nx-1):
+            self.x[i+1]=self.x[i]+self.dx[i]
+                
 
 class TwoDimPlanar:
     def __init__(self, length, width, node_len, node_wid, mat_prop):
@@ -38,7 +68,7 @@ class TwoDimPlanar:
         self.Ny=node_wid
         self.k=mat_prop['k']
         self.Cp=mat_prop['Cp']
-        self.rho=mat_prop['rho']
+#        self.rho=mat_prop['rho']
         
         # Boolean to determine biasing
         self.biasx=(0,0)
