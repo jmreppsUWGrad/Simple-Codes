@@ -363,14 +363,14 @@ def SolveVel(Nt,u,v,p,sources,dxyt,mat_prop,conv,BC_vel_press,print_out):
           +un[1:-1,:-2]*(dt*nu/dx**2+dt/2/dx*un[1:-1,1:-1]) \
           +un[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,1:-1]) \
           +un[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,1:-1]) \
-          +un[1:-1,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
+          +un[1:-1,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx/rho)
         
         v[1:-1,1:-1]=dt/(2*rho*dy)*(p[:-2,1:-1]-p[2:,1:-1]) \
           +vn[1:-1,2:]*(dt*nu/dx**2-dt/2/dx*un[1:-1,1:-1]) \
           +vn[1:-1,:-2]*(dt*nu/dx**2+dt/2/dx*vn[1:-1,1:-1]) \
           +vn[2:,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,1:-1]) \
           +vn[:-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,1:-1]) \
-          +vn[1:-1,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
+          +vn[1:-1,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy/rho)
         
         # Periodic BCs (across x)
         if (BC_vel[0]==2) or (BC_vel[1]==2):
@@ -379,28 +379,28 @@ def SolveVel(Nt,u,v,p,sources,dxyt,mat_prop,conv,BC_vel_press,print_out):
               +un[1:-1,-2]*(dt*nu/dx**2+dt/2/dx*un[1:-1,-1]) \
               +un[2:,-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,-1]) \
               +un[:-2,-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,-1]) \
-              +un[1:-1,-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
+              +un[1:-1,-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx/rho)
             
             u[1:-1,0]=dt/(2*rho*dx)*(p[1:-1,-1]-p[1:-1,1]) \
               +un[1:-1,1]*(dt*nu/dx**2-dt/2/dx*un[1:-1,0]) \
               +un[1:-1,-1]*(dt*nu/dx**2+dt/2/dx*un[1:-1,0]) \
               +un[2:,0]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,0]) \
               +un[:-2,0]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,0]) \
-              +un[1:-1,0]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
+              +un[1:-1,0]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx/rho)
             
             v[1:-1,-1]=dt/(2*rho*dy)*(p[:-2,-1]-p[2:,-1]) \
               +vn[1:-1,0]*(dt*nu/dx**2-dt/2/dx*un[1:-1,-1]) \
               +vn[1:-1,-2]*(dt*nu/dx**2+dt/2/dx*vn[1:-1,-1]) \
               +vn[2:,-1]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,-1]) \
               +vn[:-2,-1]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,-1]) \
-              +vn[1:-1,-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
+              +vn[1:-1,-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy/rho)
             
             v[1:-1,0]=dt/(2*rho*dy)*(p[:-2,0]-p[2:,0]) \
               +vn[1:-1,1]*(dt*nu/dx**2-dt/2/dx*un[1:-1,0]) \
               +vn[1:-1,-1]*(dt*nu/dx**2+dt/2/dx*vn[1:-1,0]) \
               +vn[2:,0]*(dt*nu/dy**2-dt/2/dy*vn[1:-1,0]) \
               +vn[:-2,0]*(dt*nu/dy**2+dt/2/dy*vn[1:-1,0]) \
-              +vn[1:-1,0]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
+              +vn[1:-1,0]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy/rho)
         
         # Periodic BCs (across y)
         if (BC_vel[2]==2) or (BC_vel[3]==2):
@@ -409,26 +409,26 @@ def SolveVel(Nt,u,v,p,sources,dxyt,mat_prop,conv,BC_vel_press,print_out):
               +un[-1,:-2]*(dt*nu/dx**2+dt/2/dx*un[-1,1:-1]) \
               +un[0,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[-1,1:-1]) \
               +un[-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[-1,1:-1]) \
-              +un[-1,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
+              +un[-1,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx/rho)
             u[0,1:-1]=dt/(2*rho*dx)*(p[0,:-2]-p[0,2:]) \
               +un[0,2:]*(dt*nu/dx**2-dt/2/dx*un[0,1:-1]) \
               +un[0,:-2]*(dt*nu/dx**2+dt/2/dx*un[0,1:-1]) \
               +un[1,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[0,1:-1]) \
               +un[-1,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[0,1:-1]) \
-              +un[0,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx)
+              +un[0,1:-1]*(1-2*nu*dt*(1/dx**2+1/dy**2)) + dt*(gx-dpx/rho)
             
             v[-1,1:-1]=dt/(2*rho*dy)*(p[-2,1:-1]-p[0,1:-1]) \
               +vn[-1,2:]*(dt*nu/dx**2-dt/2/dx*un[-1,1:-1]) \
               +vn[-1,:-2]*(dt*nu/dx**2+dt/2/dx*vn[-1,1:-1]) \
               +vn[0,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[-1,1:-1]) \
               +vn[-2,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[-1,1:-1]) \
-              +vn[-1,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
+              +vn[-1,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy/rho)
             v[0,1:-1]=dt/(2*rho*dy)*(p[-1,1:-1]-p[1,1:-1]) \
               +vn[0,2:]*(dt*nu/dx**2-dt/2/dx*un[0,1:-1]) \
               +vn[0,:-2]*(dt*nu/dx**2+dt/2/dx*vn[0,1:-1]) \
               +vn[1,1:-1]*(dt*nu/dy**2-dt/2/dy*vn[0,1:-1]) \
               +vn[-1,1:-1]*(dt*nu/dy**2+dt/2/dy*vn[0,1:-1]) \
-              +vn[0,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy)
+              +vn[0,1:-1]*(1-2*dt*nu*(1/dx**2+1/dy**2)) + dt*(gy-dpy/rho)
         
         diff_SSu=numpy.sum(numpy.abs(u[:]-un[:]))/numpy.sum(numpy.abs(u[:]))
         diff_SSv=numpy.sum(numpy.abs(v[:]-vn[:]))/numpy.sum(numpy.abs(v[:]))
@@ -446,8 +446,8 @@ dpx=0 # Pressure gradient in x
 dpy=0 # Pressure gradient in y
 Nx=41 # Number of nodes in x
 Ny=41 # Number of nodes in y
-rho=1.0 # Density of fluid (kg/m^3)
-mu=0.1*rho # Dynamic viscosity of fluid (Pa s)
+rho=1.0 # Density of fluid (kg/m^3) Water 998, air 1.2
+mu=0.1*rho # Dynamic viscosity of fluid (Pa s) Water 10**(-3), air 1.8*10**(-5)
 dt=0.001 # Time step size (s)
 Nt=100 # Number of time steps
 
@@ -460,6 +460,9 @@ X,Y=numpy.meshgrid(x,y)
 dx=L/(Nx-1)
 dy=W/(Ny-1)
 nu=mu/rho
+dxyt=(dx,dy,dt)
+mat_prop=(rho,mu)
+src=(dpx,dpy,gx,gy)
 
 # Convergence
 conv=0.01 # convergence criteria for pressure and velocity
@@ -481,11 +484,8 @@ v[:,0]=0
 vel_BCs=(0,0,0,0) # BC types for velocities
 pres_BCs=(1,1,1,0) # BC types for pressure
 
-dxyt=(dx,dy,dt)
-mat_prop=(rho,mu)
 BCs=(vel_BCs,pres_BCs)
 msgs=(YesPrint,YesRes)
-src=(dpx,dpy,gx,gy)
 
 #-------------------------------- Solve
 

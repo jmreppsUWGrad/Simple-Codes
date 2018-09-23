@@ -302,7 +302,7 @@ T[:, :]=400
 dt=Fo*rho*Cp*dx*dy/k
 
 #       BCs on ends of length
-Tx1=300 #                         SMALLEST x coordinate
+Tx1=600 #                         SMALLEST x coordinate
 #Tx1=numpy.zeros(Ny) #      VARYING BC
 #Tx1[:]=range(300, 600+300/(Ny-1), (300/(Ny-1)))
 #qx1=1000 # Heat flux BC
@@ -315,14 +315,14 @@ Tx2=300 #                       LARGEST x coordinate
 #Tinfx2=300 # Freestream temperature
 
 #       BCs on ends of width
-#Ty1=300 #                        SMALLEST y coordinate
+Ty1=600 #                        SMALLEST y coordinate
 #Ty1=numpy.zeros(Nx) #      VARYING BC
-qy1=numpy.zeros(timeSteps)
-qy1[:]=range(200, 2000+2000/(timeSteps), 2000/(timeSteps)) # Heat flux BC
-#qy1=1000
-#hy1=50 # Convective heat transfer coefficient (W/m^2/K)
-#Tinfy1=300 # Freestream temperature
-#Ty2=300 #                        LARGEST y coordinate
+#qy1=numpy.zeros(timeSteps)
+#qy1[:]=range(200, 2000+2000/(timeSteps), 2000/(timeSteps)) # Heat flux BC
+qy1=1000
+hy1=50 # Convective heat transfer coefficient (W/m^2/K)
+Tinfy1=300 # Freestream temperature
+Ty2=300 #                        LARGEST y coordinate
 #Ty2=numpy.zeros(Nx) #      VARYING BC
 qy2=1000 # Heat flux BC
 #hy2=50 # Convective heat transfer coefficient (W/m^2/K)
@@ -344,16 +344,16 @@ for i in range(timeSteps):
 #    if i%2==0:
 #        Tx1=Tx1-50
 #    T,error,Fo=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha),\
-#                       (1,1,1,1), Tx1, Tx2, Ty1, Ty2)
+#                       (1,1,2,2), Tx1, Tx2, qy1, qy2)
     T,error,Fo=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha),\
-                       (1,1,2,2), Tx1, Tx2, qy1, qy2)
+                       (3,3,1,1), (hy1,Tinfy1), (hy1,Tinfy1), Tx1, Tx2)
 
     if error==1:
         print 'Convergence problem at time step %i'%i
         break
 
-    if i==timeSteps/2:
-        PlotXYT(X,Y,T,300,700)
+#    if i==timeSteps/2:
+#        PlotXYT(X,Y,T,300,700)
 
 PlotXYT(X, Y, T, 300, 700)
 
