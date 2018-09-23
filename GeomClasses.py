@@ -7,7 +7,6 @@ This class is a 2D planar domain for solving temp, vel or density.
 Requires:
     -length and width of domain
     -number of nodes across length and width (no biasing)
-    -type of problem to setup
 
 Desired:
     -biasing ability for node creation
