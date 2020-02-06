@@ -1,6 +1,5 @@
-# Simple-Codes
-Derived and created python scripts as introduction to CFD; Laptop origin
+This project is experimentations in Python for creating CFD codes.
 
-As a simple way to start my MASc, I derived and created scripts to solve for 1D conduction (Steady, implicit/explicit transient) with
-temperature, flux or convective BCs as well as 2D conduction (Steady, implicit/explicit transient) with different BC arrangements
-(2D conduction in progress).
+Currently, have codes for 1D and 2D conduction and 2D incompressible, unsteady Navier-Stokes solvers.
+
+Working on mesh generator in geometry class. Also learning about classes simultaneously.

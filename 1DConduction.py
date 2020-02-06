@@ -173,17 +173,41 @@ def TransExpFluxTempBCs(N, L, rho, Cp, k, Fo, timeSteps, Tinit, qbc1, Tbc2):
     dx=L/(N-1)
     dt=Fo*Cp*rho*dx**2/k
     T=numpy.zeros(N)
+    T_infMed=300
+    eta=numpy.zeros(N)
+    v_0,v_1,v,N=0,0,0,0
+    BC_changed=False
     T[:-1]=Tinit
     T[-1]=Tbc2
     print 'Transient model (explicit) with Flux and Temperature BCs. dt=%.2fs for %i timesteps'%(dt,timeSteps)
     for i in range(timeSteps):
-        Tc=T.copy()        
+        Tc=T.copy()
+        v_0=numpy.sum(eta*dx)
+        deta=4.89*10**6*(1-eta)*numpy.exp(-70000/8.314/Tc)
+        eta+=deta*dt
         # Calculate temperatures
-        T[1:-1]=Fo*(Tc[:-2]+Tc[2:])+(1-2*Fo)*Tc[1:-1] 
-        T[0]=2*Fo*Tc[1]+Tc[0]*(1-2*Fo)+2*Fo*qbc1*dx/k
+        T[1:-1]=Fo*(Tc[:-2]+Tc[2:])+(1-2*Fo)*Tc[1:-1]+deta[1:-1]*dx/k*4700000
+        T[0]=2*Fo*Tc[1]+Tc[0]*(1-2*Fo)+2*Fo*qbc1*dx/k+deta[0]*dx/k*4700000
+        
+        # Semi-infinte medium
+        T_infMed=300+2*qbc1/k*numpy.sqrt(k/rho/Cp*(i+1)*dt/numpy.pi)
+        eta[eta<10**(-5)]=0
+        v_1=numpy.sum(eta*dx)
+        
+#        if T[0]>1.5*T_infMed and not BC_changed:
+        if numpy.amax(eta)>=0.8 and not BC_changed:
+            print 'Ignition t=%f ms'%((i+1)*dt*1000)
+            qbc1=0
+            BC_changed=True
+        elif (v_1-v_0)/dt>0.001:
+            v+=(v_1-v_0)/dt
+            N+=1
         #print(diff)
-    
-    return T
+    try:
+        print 'Average wave speed: %f'%(v/N)
+    except:
+        print 'No wave speed'        
+    return T,eta,T_infMed
 
 # Transient, implicit solver with flux and temp BCs
 def TransImpFluxTempBCs(N, L, rho, Cp, k, Fo, timeSteps, conv, alpha, Tinit, qbc1, Tbc2):
@@ -269,41 +293,42 @@ def TransImpConvTempBCs(N, L, rho, Cp, k, Fo, timeSteps, conv, alpha, Tinit, h, 
     
     return T
 # ------------------Setup-----------------------------------
-L=4.0 # Length of cylinder
-k=25 # Thermal conductivity (W/m/K)
-rho=8000 # Density (kg/m^3)
-Cp=800 # Specific heat (J/kg/K)
-N=5 # Number of nodes
+L=0.001 # Length of cylinder
+k=65 # Thermal conductivity (W/m/K)
+rho=1523 # Density (kg/m^3)
+Cp=625 # Specific heat (J/kg/K)
+N=1000 # Number of nodes
 Fo=0.2 # Fourier number (less than 0.5 for explicit method)
 
 #       Convergence
 conv=.001 # Convergence target (SS and implicit trans solvers)
-timeSteps=10 # number of time steps (transient)
+timeSteps=19000 # number of time steps (transient)
 TranConvStab=0.5 # Fo(Bi+1)<=0.5 (trans, convective BC)
 alpha=1 # Relaxation parameter (<1-under, >1-over)
 
 #       Boundary and Initial conditions
 T_init=300 # Initial temperature (uniform); transient and SS solvers
 # Side 1 (heat flux, convection or temp)
-qBC=1000 # Heat flux BC
+qBC=200000000 # Heat flux BC
 T1=300 # Temp BC1
 h=50 # Convective heat transfer coefficient (W/m^2/K)
 Tinf=273 # Freestream temperature
 # Side 2 (temp)
-T2=600 # Temp BC2
+T2=300 # Temp BC2
 
 # ----------------Solve and Plot (uncomment desired solvers)
 X=numpy.linspace(0,L,N)
 #T=SSTempBCs(N, conv, alpha, T_init, T1, T2)
 #T=SSFluxTempBCs(N, L, conv, alpha, T_init, qBC, T2)
-T=SSConvTempBCs(N, L, k, conv, alpha, T_init, h, Tinf, T2)
-pyplot.plot(X, T, marker='x')
+#T=SSConvTempBCs(N, L, k, conv, alpha, T_init, h, Tinf, T2)
+#pyplot.plot(X, T, marker='x')
+#T=TransExpTempBCs(N, L, rho, Cp, k, Fo, timeSteps, T_init, T1, T2)
+T,eta,T_inf=TransExpFluxTempBCs(N, L, rho, Cp, k, Fo, timeSteps, T_init, qBC, T2)
+#T=TransExpConvTempBCs(N, L, rho, Cp, k, TranConvStab, timeSteps, T_init, h, Tinf, T2)
+pyplot.plot(X, T)
+pyplot.plot(X[0], T_inf, marker='x')
 pyplot.xlabel('X')
 pyplot.ylabel('T')
-#T=TransExpTempBCs(N, L, rho, Cp, k, Fo, timeSteps, T_init, T1, T2)
-#T=TransExpFluxTempBCs(N, L, rho, Cp, k, Fo, timeSteps, T_init, qBC, T2)
-#T=TransExpConvTempBCs(N, L, rho, Cp, k, TranConvStab, timeSteps, T_init, h, Tinf, T2)
-#pyplot.plot(X, T)
 #T=TransImpTempBCs(N, L, rho, Cp, k, Fo, timeSteps, conv, alpha, T_init, T1, T2)
 #T=TransImpFluxTempBCs(N, L, rho, Cp, k, Fo, timeSteps, conv, alpha, T_init, qBC, T2)
 #T=TransImpConvTempBCs(N, L, rho, Cp, k, Fo, timeSteps, conv, alpha, T_init, h, Tinf, T2)

@@ -511,13 +511,18 @@ def PlotXYT(X, Y, T, T_lower_lim, T_upper_lim,title):
     pyplot.title(title)
 
 # ------------------Setup-----------------------------------
-L=10**(-3) # Length of plate (in x direction)
-W=6*10**(-3) # Width of plate (in y direction)
-Nx=101 # Number of nodes across length
-Ny=601 # Number of nodes across width
+#L=10**(-3) # Length of plate (in x direction)
+#W=6*10**(-3) # Width of plate (in y direction)
+#Nx=101 # Number of nodes across length
+#Ny=601 # Number of nodes across width
 k=10 # Thermal conductivity (W/m/K)
 rho=8000 # Density (kg/m^3)
 Cp=800 # Specific heat (J/kg/K)
+
+L=4.0
+W=4.0
+Nx=41
+Ny=41
 
 dx=L/(Nx-1)
 dy=W/(Ny-1)
@@ -525,9 +530,9 @@ T=numpy.zeros((Ny, Nx))
 
 #       Convergence
 conv=.0001 # Convergence target (SS and implicit trans solvers)
-dt=10**(-7)
+#dt=1600
 #dt=0.1*rho*Cp*dx*dy/k # time step
-timeSteps=1000 # number of time steps (transient)
+timeSteps=100 # number of time steps (transient)
 alpha=1 # Relaxation parameter (<1-under, >1-over)
 
 #       Initial conditions
@@ -539,43 +544,50 @@ T[:, :]=300
 # BC_info: temp/flux value OR h then Tinf (convective BC)
 #range: (0,-1)-whole boundary (temp), (1,-2) whole boundary (flux), (0, 2)-node numbers
 
-#BC_info={'BCy1': ('T',600,(0,-1)),\
-#         'BCy2': ('T',300,(0,-1)),\
-#         'BCx1': ('C',(50,300),(1,-2)),\
-#         'BCx2': ('C',(50,300),(1,-2))\
-#         }
-
-BC_info={'BCx1': ('F',0,(1,-2)),\
-         'BCx2': ('C',(50,300),(1,-2)),\
-         'BCy1': ('F',0,(1,-2)),\
-         'BCy2': ('F',0.6*4*10**8,(1,int(0.05*10**(-3)/dy+1)),'C',(50,300),(int(0.05*10**(-3)/dy+1),-2))\
+BC_info={'BCx1': ('T',600,(0,-1)),\
+         'BCx2': ('T',300,(0,-1)),\
+         'BCy1': ('T',300,(0,-1)),\
+         'BCy2': ('T',600,(0,-1))\
          }
+
+#BC_info={'BCx1': ('F',0,(1,-2)),\
+#         'BCx2': ('C',(50,300),(1,-2)),\
+#         'BCy1': ('F',0,(1,-2)),\
+#         'BCy2': ('F',0.6*4*10**8,(1,int(0.05*10**(-3)/dy+1)),'C',(50,300),(int(0.05*10**(-3)/dy+1),-2))\
+#         }
 # ----------------Solve and Plot (uncomment desired settings)
 x=numpy.linspace(0, L, Nx)
 y=numpy.linspace(0, W, Ny)
 X, Y = numpy.meshgrid(x, y)
-Fo=dt/rho/Cp/dx/dy*k
+Fo=0.4
 
 #       Steady state solver/plotter
 #T,error=SteadySolve(T, (dx,dy), k, (conv,alpha),BC_info)
-#PlotXYT(X, Y, T, 300, 1000,'Time step 0')
+#PlotXYT(X, Y, T, 300, 700,'SS')
 
 #       Transient solver
 for i in range(timeSteps):
     # Change a BC with time
 #    if i%2==0:
 #        Tx1=Tx1-50
-    print 'Time step %i'%i
-    T,error,Fo=TransSolve(1, T, (dx,dy), k, Fo, (conv,alpha),BC_info)
-
-    if error==1:
-        print 'Convergence problem at time step %i'%i
-        break
+#    print 'Time step %i'%i
+    T,error,Fo=TransSolve(0, T, (dx,dy), k, Fo, (conv,alpha),BC_info)
+#
+#    if error==1:
+#        print 'Convergence problem at time step %i'%i
+#        break
 
 #    if i==timeSteps/2:
 #        PlotXYT(X,Y,T,300,800,'Time step %i'%i)
+#
+#PlotXYT(X, Y, T, 300, 700, 'Time step %f'%dt)
+pyplot.figure(figsize=(7, 7))
+pyplot.contourf(X, Y, T, alpha=0.5, cmap=cm.viridis)  
+pyplot.colorbar()
+pyplot.xlabel('$x$ (m)')
+pyplot.ylabel('$y$ (m)')
+pyplot.title('Temperature distribution');
 
-PlotXYT(X, Y, T, 300, 800,'Time step %i'%i)
 #plotx=dx
 ##int(plotx/dx)
 #pyplot.figure()
@@ -607,11 +619,11 @@ PlotXYT(X, Y, T, 300, 800,'Time step %i'%i)
 #pyplot.xlim([0,1])
 ##pyplot.title('Temperature distribution')
 #
-plotx=dx
-#int(plotx/dx)
-pyplot.figure()
-pyplot.plot(Y[:,int(plotx/dx)]*1000, T[:,int(plotx/dx)])
-pyplot.xlabel('Y (mm)')
-pyplot.ylabel('T (K)')
-pyplot.xlim([4,6])
-pyplot.title('Temperature distribution at X=%3f mm'%(plotx*1000))
+#plotx=dx
+##int(plotx/dx)
+#pyplot.figure()
+#pyplot.plot(Y[:,int(plotx/dx)]*1000, T[:,int(plotx/dx)])
+#pyplot.xlabel('Y (mm)')
+#pyplot.ylabel('T (K)')
+#pyplot.xlim([4,6])
+#pyplot.title('Temperature distribution at X=%3f mm'%(plotx*1000))

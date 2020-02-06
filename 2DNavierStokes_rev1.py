@@ -321,8 +321,8 @@ def ResolvePress(p, u, v, dxyt, prop, conv, YesRes, dp_zero):
         print 'Residuals: %.6f'%diff
         error=1
     # Pressure clipping
-    if numpy.amax(p[:])<10**(-5):
-        p[:,:]=0
+#    if numpy.amax(p[:])<10**(-5):
+#        p[:,:]=0
     
     return p,error
 
@@ -449,7 +449,7 @@ Ny=41 # Number of nodes in y
 rho=1.0 # Density of fluid (kg/m^3) Water 998, air 1.2
 mu=0.1*rho # Dynamic viscosity of fluid (Pa s) Water 10**(-3), air 1.8*10**(-5)
 dt=0.001 # Time step size (s)
-Nt=100 # Number of time steps
+Nt=10 # Number of time steps
 
 u=numpy.zeros((Ny, Nx))
 v=numpy.zeros((Ny, Nx))
